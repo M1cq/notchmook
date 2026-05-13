@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 enum AirDropService {
     static func share(_ urls: [URL]) {
         guard urls.isEmpty == false else {
-            openAirDropWindow()
+            openAirDrop()
             return
         }
 
@@ -22,13 +22,13 @@ enum AirDropService {
         }
     }
 
-    static func openAirDropWindow() {
-        AppleScriptRunner.run("""
-        tell application "Finder"
-            activate
-            open AirDrop window
-        end tell
-        """)
+    static func openAirDrop() {
+        let appURL = URL(fileURLWithPath: "/System/Library/CoreServices/Finder.app/Contents/Applications/AirDrop.app")
+        if FileManager.default.fileExists(atPath: appURL.path) {
+            NSWorkspace.shared.open(appURL)
+        } else {
+            NSWorkspace.shared.open(URL(fileURLWithPath: NSHomeDirectory()))
+        }
     }
 
     @discardableResult

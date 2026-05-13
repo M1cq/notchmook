@@ -6,6 +6,8 @@ final class MediaController: ObservableObject {
     @Published private(set) var snapshot = MediaSnapshot()
 
     private var timer: Timer?
+    private let refreshLock = NSLock()
+    private var refreshInFlight = false
 
     init() {
         refresh()
@@ -19,157 +21,25 @@ final class MediaController: ObservableObject {
     }
 
     func refresh() {
-        let script = """
-        on cleanBrowserTitle(rawTitle, rawURL, sourceName)
-            set cleanedTitle to rawTitle as text
-            if cleanedTitle contains " - YouTube Music" then
-                set AppleScript's text item delimiters to " - YouTube Music"
-                set cleanedTitle to text item 1 of cleanedTitle
-                set AppleScript's text item delimiters to ""
-            end if
-            if cleanedTitle contains " - YouTube" then
-                set AppleScript's text item delimiters to " - YouTube"
-                set cleanedTitle to text item 1 of cleanedTitle
-                set AppleScript's text item delimiters to ""
-            end if
-            if cleanedTitle contains " - " then
-                set AppleScript's text item delimiters to " - "
-                set titleBits to text items of cleanedTitle
-                set AppleScript's text item delimiters to ""
-                if (count of titleBits) is greater than 1 then
-                    set trackName to item 1 of titleBits
-                    set artistName to item 2 of titleBits
-                    return sourceName & "||" & trackName & "||" & artistName & "||playing"
-                end if
-            end if
-            if cleanedTitle is "" then set cleanedTitle to sourceName
-            return sourceName & "||" & cleanedTitle & "||Browser media||playing"
-        end cleanBrowserTitle
-
-        on isMediaURL(tabURL)
-            if tabURL contains "music.youtube.com" then return true
-            if tabURL contains "youtube.com/watch" then return true
-            if tabURL contains "youtu.be/" then return true
-            if tabURL contains "soundcloud.com" then return true
-            if tabURL contains "open.spotify.com" then return true
-            if tabURL contains "music.apple.com" then return true
-            if tabURL contains "twitch.tv" then return true
-            if tabURL contains "vimeo.com" then return true
-            return false
-        end isMediaURL
-
-        on sourceNameForURL(tabURL)
-            if tabURL contains "music.youtube.com" then return "YouTube Music"
-            if tabURL contains "youtube.com" or tabURL contains "youtu.be/" then return "YouTube"
-            if tabURL contains "soundcloud.com" then return "SoundCloud"
-            if tabURL contains "open.spotify.com" then return "Spotify Web"
-            if tabURL contains "music.apple.com" then return "Apple Music Web"
-            if tabURL contains "twitch.tv" then return "Twitch"
-            if tabURL contains "vimeo.com" then return "Vimeo"
-            return "Now Playing"
-        end sourceNameForURL
-
-        on chromiumMediaTrack(appName)
-            set jsCode to "(() => { const metadata = navigator.mediaSession && navigator.mediaSession.metadata; const media = Array.from(document.querySelectorAll('video,audio')).find(item => !item.paused && !item.ended) || Array.from(document.querySelectorAll('video,audio'))[0]; const title = (metadata && metadata.title) || document.title || 'Browser media'; const artist = (metadata && (metadata.artist || metadata.album)) || location.hostname.replace(/^www\\\\./, ''); const state = media ? (media.paused ? 'paused' : 'playing') : 'playing'; return ['Now Playing', title, artist, state].join('||'); })();"
-            try
-                using terms from application "/Applications/Google Chrome.app"
-                    tell application appName
-                        repeat with browserWindow in windows
-                            repeat with browserTab in tabs of browserWindow
-                                set tabURL to URL of browserTab as text
-                                if my isMediaURL(tabURL) then
-                                    try
-                                        set jsResult to execute browserTab javascript jsCode
-                                        if jsResult is not missing value and jsResult is not "" then return jsResult
-                                    end try
-                                    set tabTitle to title of browserTab as text
-                                    return my cleanBrowserTitle(tabTitle, tabURL, my sourceNameForURL(tabURL))
-                                end if
-                            end repeat
-                        end repeat
-                    end tell
-                end using terms from
-            end try
-            return ""
-        end chromiumMediaTrack
-
-        on safariMediaTrack()
-            set jsCode to "(() => { const metadata = navigator.mediaSession && navigator.mediaSession.metadata; const media = Array.from(document.querySelectorAll('video,audio')).find(item => !item.paused && !item.ended) || Array.from(document.querySelectorAll('video,audio'))[0]; const title = (metadata && metadata.title) || document.title || 'Browser media'; const artist = (metadata && (metadata.artist || metadata.album)) || location.hostname.replace(/^www\\\\./, ''); const state = media ? (media.paused ? 'paused' : 'playing') : 'playing'; return ['Now Playing', title, artist, state].join('||'); })();"
-            try
-                tell application "Safari"
-                    repeat with browserWindow in windows
-                        repeat with browserTab in tabs of browserWindow
-                            set tabURL to URL of browserTab as text
-                            if my isMediaURL(tabURL) then
-                                try
-                                    set jsResult to do JavaScript jsCode in browserTab
-                                    if jsResult is not missing value and jsResult is not "" then return jsResult
-                                end try
-                                set tabTitle to name of browserTab as text
-                                return my cleanBrowserTitle(tabTitle, tabURL, my sourceNameForURL(tabURL))
-                            end if
-                        end repeat
-                    end repeat
-                end tell
-            end try
-            return ""
-        end safariMediaTrack
-
-        set foundTrack to ""
-        tell application "System Events"
-            set spotifyOpen to exists (processes where name is "Spotify")
-            set musicOpen to exists (processes where name is "Music")
-            set safariOpen to exists (processes where name is "Safari")
-            set chromeOpen to exists (processes where name is "Google Chrome")
-            set edgeOpen to exists (processes where name is "Microsoft Edge")
-            set braveOpen to exists (processes where name is "Brave Browser")
-            set arcOpen to exists (processes where name is "Arc")
-            set diaOpen to exists (processes where name is "Dia")
-        end tell
-        if spotifyOpen then
-            tell application "Spotify"
-                if player state is playing or player state is paused then
-                    set foundTrack to "Spotify||" & (name of current track as text) & "||" & (artist of current track as text) & "||" & (player state as text)
-                end if
-            end tell
-        end if
-        if foundTrack is "" and musicOpen then
-            tell application "Music"
-                if player state is playing or player state is paused then
-                    set foundTrack to "Music||" & (name of current track as text) & "||" & (artist of current track as text) & "||" & (player state as text)
-                end if
-            end tell
-        end if
-        if foundTrack is "" and safariOpen then
-            set foundTrack to my safariMediaTrack()
-        end if
-        if foundTrack is "" and chromeOpen then
-            set foundTrack to my chromiumMediaTrack("Google Chrome")
-        end if
-        if foundTrack is "" and edgeOpen then
-            set foundTrack to my chromiumMediaTrack("Microsoft Edge")
-        end if
-        if foundTrack is "" and braveOpen then
-            set foundTrack to my chromiumMediaTrack("Brave Browser")
-        end if
-        if foundTrack is "" and arcOpen then
-            set foundTrack to my chromiumMediaTrack("Arc")
-        end if
-        if foundTrack is "" and diaOpen then
-            set foundTrack to my chromiumMediaTrack("Dia")
-        end if
-        set currentVolume to output volume of (get volume settings)
-        if foundTrack is "" then
-            return "Music||No media playing||Open Music, Spotify, or YouTube Music||stopped||" & currentVolume
-        end if
-        return foundTrack & "||" & currentVolume
-        """
+        refreshLock.lock()
+        guard refreshInFlight == false else {
+            refreshLock.unlock()
+            return
+        }
+        refreshInFlight = true
+        refreshLock.unlock()
 
         DispatchQueue.global(qos: .utility).async {
-            let output = AppleScriptRunner.run(script)
-            let parsed = Self.parse(output)
+            defer {
+                self.refreshLock.lock()
+                self.refreshInFlight = false
+                self.refreshLock.unlock()
+            }
+
+            let currentVolume = self.snapshot.outputVolume
+            let resolved = Self.resolvedSnapshot(volume: currentVolume)
             DispatchQueue.main.async {
-                self.snapshot = parsed
+                self.snapshot = resolved
             }
         }
     }
@@ -188,36 +58,260 @@ final class MediaController: ObservableObject {
 
     func setVolume(_ value: Double) {
         let clamped = max(0, min(100, Int(value.rounded())))
-        AppleScriptRunner.run("set volume output volume \(clamped)")
         snapshot.outputVolume = clamped
     }
 
     private func sendMediaCommand(_ command: MediaKeyService.Command) {
         DispatchQueue.global(qos: .userInitiated).async {
-            MediaKeyService.send(command)
+            if MediaRemoteService.send(command) == false {
+                MediaKeyService.send(command)
+            }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
                 self.refresh()
             }
         }
     }
 
-    private static func parse(_ output: String?) -> MediaSnapshot {
-        guard let output, output.isEmpty == false else {
-            return MediaSnapshot()
+    private static func resolvedSnapshot(volume: Int) -> MediaSnapshot {
+        if let appleScript = AppleScriptMediaService.currentSnapshot(volume: volume) {
+            return appleScript
+        }
+        if let accessibility = AccessibilityMediaService.currentSnapshot(volume: volume) {
+            return accessibility
         }
 
-        let parts = output.components(separatedBy: "||")
-        guard parts.count >= 5 else {
-            return MediaSnapshot()
+        let windowFallback = windowTitleFallback(volume: volume)
+        if windowFallback.hasMedia {
+            return windowFallback
+        }
+
+        let pwaFallback = youtubeMusicPWAFallback(volume: volume)
+        if pwaFallback.hasMedia {
+            return pwaFallback
+        }
+
+        let audioProcessFallback = audioProcessFallback(volume: volume)
+        if audioProcessFallback.hasMedia {
+            return audioProcessFallback
+        }
+
+        if let mediaRemote = MediaRemoteService.currentSnapshot(volume: volume) {
+            return mediaRemote
+        }
+
+        return MediaSnapshot(outputVolume: volume)
+    }
+
+    private static func windowTitleFallback(volume: Int) -> MediaSnapshot {
+        guard let windowInfo = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else {
+            return MediaSnapshot(outputVolume: volume)
+        }
+
+        for info in windowInfo {
+            let owner = info[kCGWindowOwnerName as String] as? String ?? ""
+            let title = info[kCGWindowName as String] as? String ?? ""
+            guard title.isEmpty == false else { continue }
+
+            if let snapshot = parseWindowTitle(title: title, owner: owner, volume: volume) {
+                return snapshot
+            }
+        }
+
+        return MediaSnapshot(outputVolume: volume)
+    }
+
+    private static func parseWindowTitle(title: String, owner: String, volume: Int) -> MediaSnapshot? {
+        let normalized = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard normalized.isEmpty == false else { return nil }
+
+        let browserOwners = [
+            "Safari",
+            "Google Chrome",
+            "Microsoft Edge",
+            "Brave Browser",
+            "Arc",
+            "Dia"
+        ]
+
+        if normalized.localizedCaseInsensitiveContains("YouTube Music") {
+            let cleaned = normalized
+                .replacingOccurrences(of: " - YouTube Music", with: "")
+                .replacingOccurrences(of: "YouTube Music", with: "")
+                .trimmingCharacters(in: CharacterSet(charactersIn: " -\n\t"))
+            return splitTitle(cleaned.isEmpty ? normalized : cleaned, appName: "YouTube Music", fallbackArtist: owner, volume: volume)
+        }
+
+        if normalized.localizedCaseInsensitiveContains("YouTube") {
+            let cleaned = normalized
+                .replacingOccurrences(of: " - YouTube", with: "")
+                .trimmingCharacters(in: CharacterSet(charactersIn: " -\n\t"))
+            return splitTitle(cleaned.isEmpty ? normalized : cleaned, appName: "YouTube", fallbackArtist: owner, volume: volume)
+        }
+
+        if normalized.localizedCaseInsensitiveContains("Spotify") || owner == "Spotify" {
+            return splitTitle(normalized.replacingOccurrences(of: "Spotify", with: ""), appName: owner == "Spotify" ? "Spotify" : "Spotify Web", fallbackArtist: owner, volume: volume)
+        }
+
+        if browserOwners.contains(owner),
+           normalized.localizedCaseInsensitiveContains("NotchDesk") == false,
+           normalized.localizedCaseInsensitiveContains("Finder") == false {
+            return MediaSnapshot(
+                appName: "Now Playing",
+                title: normalized,
+                artist: owner,
+                state: "playing",
+                outputVolume: volume,
+                lastUpdated: Date()
+            )
+        }
+
+        return nil
+    }
+
+    private static func splitTitle(_ rawTitle: String, appName: String, fallbackArtist: String, volume: Int) -> MediaSnapshot {
+        let pieces = rawTitle
+            .components(separatedBy: " - ")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { $0.isEmpty == false }
+
+        let title = pieces.first ?? rawTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        let artist = pieces.dropFirst().first ?? fallbackArtist
+
+        return MediaSnapshot(
+            appName: appName,
+            title: title.isEmpty ? appName : title,
+            artist: artist.isEmpty ? "Now Playing" : artist,
+            state: "playing",
+            outputVolume: volume,
+            lastUpdated: Date()
+        )
+    }
+
+    private static func youtubeMusicPWAFallback(volume: Int) -> MediaSnapshot {
+        guard isYouTubeMusicPWARunning() else {
+            return MediaSnapshot(outputVolume: volume)
         }
 
         return MediaSnapshot(
-            appName: parts[0],
-            title: parts[1],
-            artist: parts[2],
-            state: parts[3],
-            outputVolume: Int(parts[4]) ?? 50,
+            appName: "YouTube Music",
+            title: "YouTube Music",
+            artist: "Now Playing",
+            state: "playing",
+            outputVolume: volume,
             lastUpdated: Date()
         )
+    }
+
+    private static func audioProcessFallback(volume: Int) -> MediaSnapshot {
+        let output = processOutput(executable: "/bin/ps", arguments: ["-axo", "command"])
+        let lines = output.components(separatedBy: .newlines)
+
+        if lines.contains(where: { line in
+            line.localizedCaseInsensitiveContains("YouTube Music")
+                || line.localizedCaseInsensitiveContains("music.youtube.com")
+        }) {
+            return MediaSnapshot(
+                appName: "YouTube Music",
+                title: "YouTube Music",
+                artist: "Now Playing",
+                state: "playing",
+                outputVolume: volume,
+                lastUpdated: Date()
+            )
+        }
+
+        if lines.contains(where: { line in
+            line.localizedCaseInsensitiveContains("Google Chrome Helper")
+                && line.localizedCaseInsensitiveContains("audio.mojom.AudioService")
+        }) {
+            return MediaSnapshot(
+                appName: "Chrome",
+                title: "Browser Media",
+                artist: "Now Playing",
+                state: "playing",
+                outputVolume: volume,
+                lastUpdated: Date()
+            )
+        }
+
+        if lines.contains(where: { line in
+            line.localizedCaseInsensitiveContains("Dia")
+                && line.localizedCaseInsensitiveContains("audio.mojom.AudioService")
+        }) {
+            return MediaSnapshot(
+                appName: "Dia",
+                title: "Browser Media",
+                artist: "Now Playing",
+                state: "playing",
+                outputVolume: volume,
+                lastUpdated: Date()
+            )
+        }
+
+        if lines.contains(where: { line in
+            line.localizedCaseInsensitiveContains("/System/Applications/Music.app/Contents/MacOS/Music")
+        }) {
+            return MediaSnapshot(
+                appName: "Music",
+                title: "Music",
+                artist: "Now Playing",
+                state: "playing",
+                outputVolume: volume,
+                lastUpdated: Date()
+            )
+        }
+
+        if lines.contains(where: { line in
+            line.localizedCaseInsensitiveContains("/Spotify.app/Contents/MacOS/Spotify")
+        }) {
+            return MediaSnapshot(
+                appName: "Spotify",
+                title: "Spotify",
+                artist: "Now Playing",
+                state: "playing",
+                outputVolume: volume,
+                lastUpdated: Date()
+            )
+        }
+
+        return MediaSnapshot(outputVolume: volume)
+    }
+
+    private static func isYouTubeMusicPWARunning() -> Bool {
+        if processListContains(all: ["YouTube Music.app", "app_mode_loader"]) {
+            return true
+        }
+        if processListContains(all: ["music.youtube.com", "app_mode_loader"]) {
+            return true
+        }
+        return processListContains(all: ["Chrome Apps.localized", "YouTube Music"])
+    }
+
+    private static func processListContains(all patterns: [String]) -> Bool {
+        processOutput(executable: "/bin/ps", arguments: ["-axo", "command"])
+            .components(separatedBy: .newlines)
+            .contains { line in
+                patterns.allSatisfy { line.localizedCaseInsensitiveContains($0) }
+            }
+    }
+
+    private static func processOutput(executable: String, arguments: [String]) -> String {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: executable)
+        process.arguments = arguments
+
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = Pipe()
+
+        do {
+            try process.run()
+            process.waitUntilExit()
+
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            return String(data: data, encoding: .utf8) ?? ""
+        } catch {
+            return ""
+        }
     }
 }

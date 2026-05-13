@@ -470,9 +470,31 @@ private struct SettingsStripContent: View {
         HStack(spacing: 12) {
             CompactToggle(title: "Hover", isOn: $model.autoExpandOnHover)
             CompactToggle(title: "Pinned", isOn: $model.isPinned)
+            PermissionButton()
             ThemeSwatches()
             Spacer()
         }
+    }
+}
+
+private struct PermissionButton: View {
+    var body: some View {
+        Button {
+            PermissionService.requestAutomationPrompts()
+            PermissionService.openPrivacySettings()
+        } label: {
+            VStack(spacing: 6) {
+                Image(systemName: "lock.shield")
+                    .font(.system(size: 15, weight: .bold))
+                Text("Perms")
+                    .font(.system(size: 9, weight: .bold))
+            }
+            .foregroundStyle(.white)
+            .frame(width: 70, height: 54)
+            .background(RoundedRectangle(cornerRadius: 15, style: .continuous).fill(.black.opacity(0.24)))
+        }
+        .buttonStyle(.plain)
+        .help("Request Automation permissions")
     }
 }
 
