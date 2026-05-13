@@ -171,7 +171,7 @@ private final class ClearHostingView<Content: View>: NSHostingView<Content> {
         guard let model, model.autoExpandOnHover, model.isExpanded == false else { return }
 
         let point = convert(event.locationInWindow, from: nil)
-        if collapsedHoverRect.contains(point) {
+        if shouldExpandFromCollapsed(at: point) {
             model.expand()
         }
     }
@@ -181,7 +181,7 @@ private final class ClearHostingView<Content: View>: NSHostingView<Content> {
         guard let model, model.autoExpandOnHover, model.isExpanded == false else { return }
 
         let point = convert(event.locationInWindow, from: nil)
-        if collapsedHoverRect.contains(point) {
+        if shouldExpandFromCollapsed(at: point) {
             model.expand()
         }
     }
@@ -224,11 +224,15 @@ private final class ClearHostingView<Content: View>: NSHostingView<Content> {
 
     private var collapsedHoverRect: NSRect {
         NSRect(
-            x: bounds.midX - (collapsedHitSize.width / 2) - 10,
-            y: bounds.maxY - collapsedHitSize.height - 4,
-            width: collapsedHitSize.width + 20,
-            height: collapsedHitSize.height + 8
+            x: bounds.midX - 38,
+            y: bounds.maxY - 16,
+            width: 76,
+            height: 16
         )
+    }
+
+    private func shouldExpandFromCollapsed(at point: NSPoint) -> Bool {
+        collapsedHoverRect.contains(point)
     }
 
     override func viewDidMoveToWindow() {

@@ -20,15 +20,17 @@ final class MediaController: ObservableObject {
 
     func refresh() {
         let script = """
-        on cleanYouTubeTitle(rawTitle)
+        on cleanBrowserTitle(rawTitle, rawURL, sourceName)
             set cleanedTitle to rawTitle as text
             if cleanedTitle contains " - YouTube Music" then
                 set AppleScript's text item delimiters to " - YouTube Music"
                 set cleanedTitle to text item 1 of cleanedTitle
                 set AppleScript's text item delimiters to ""
             end if
-            if cleanedTitle contains "YouTube Music" then
-                return "YouTube Music||YouTube Music||Browser playback||playing"
+            if cleanedTitle contains " - YouTube" then
+                set AppleScript's text item delimiters to " - YouTube"
+                set cleanedTitle to text item 1 of cleanedTitle
+                set AppleScript's text item delimiters to ""
             end if
             if cleanedTitle contains " - " then
                 set AppleScript's text item delimiters to " - "
@@ -37,22 +39,51 @@ final class MediaController: ObservableObject {
                 if (count of titleBits) is greater than 1 then
                     set trackName to item 1 of titleBits
                     set artistName to item 2 of titleBits
-                    return "YouTube Music||" & trackName & "||" & artistName & "||playing"
+                    return sourceName & "||" & trackName & "||" & artistName & "||playing"
                 end if
             end if
-            return "YouTube Music||" & cleanedTitle & "||Browser playback||playing"
-        end cleanYouTubeTitle
+            if cleanedTitle is "" then set cleanedTitle to sourceName
+            return sourceName & "||" & cleanedTitle & "||Browser media||playing"
+        end cleanBrowserTitle
 
-        on chromiumYouTubeTrack(appName)
+        on isMediaURL(tabURL)
+            if tabURL contains "music.youtube.com" then return true
+            if tabURL contains "youtube.com/watch" then return true
+            if tabURL contains "youtu.be/" then return true
+            if tabURL contains "soundcloud.com" then return true
+            if tabURL contains "open.spotify.com" then return true
+            if tabURL contains "music.apple.com" then return true
+            if tabURL contains "twitch.tv" then return true
+            if tabURL contains "vimeo.com" then return true
+            return false
+        end isMediaURL
+
+        on sourceNameForURL(tabURL)
+            if tabURL contains "music.youtube.com" then return "YouTube Music"
+            if tabURL contains "youtube.com" or tabURL contains "youtu.be/" then return "YouTube"
+            if tabURL contains "soundcloud.com" then return "SoundCloud"
+            if tabURL contains "open.spotify.com" then return "Spotify Web"
+            if tabURL contains "music.apple.com" then return "Apple Music Web"
+            if tabURL contains "twitch.tv" then return "Twitch"
+            if tabURL contains "vimeo.com" then return "Vimeo"
+            return "Now Playing"
+        end sourceNameForURL
+
+        on chromiumMediaTrack(appName)
+            set jsCode to "(() => { const metadata = navigator.mediaSession && navigator.mediaSession.metadata; const media = Array.from(document.querySelectorAll('video,audio')).find(item => !item.paused && !item.ended) || Array.from(document.querySelectorAll('video,audio'))[0]; const title = (metadata && metadata.title) || document.title || 'Browser media'; const artist = (metadata && (metadata.artist || metadata.album)) || location.hostname.replace(/^www\\\\./, ''); const state = media ? (media.paused ? 'paused' : 'playing') : 'playing'; return ['Now Playing', title, artist, state].join('||'); })();"
             try
                 using terms from application "/Applications/Google Chrome.app"
                     tell application appName
                         repeat with browserWindow in windows
                             repeat with browserTab in tabs of browserWindow
                                 set tabURL to URL of browserTab as text
-                                if tabURL contains "music.youtube.com" then
+                                if my isMediaURL(tabURL) then
+                                    try
+                                        set jsResult to execute browserTab javascript jsCode
+                                        if jsResult is not missing value and jsResult is not "" then return jsResult
+                                    end try
                                     set tabTitle to title of browserTab as text
-                                    return my cleanYouTubeTitle(tabTitle)
+                                    return my cleanBrowserTitle(tabTitle, tabURL, my sourceNameForURL(tabURL))
                                 end if
                             end repeat
                         end repeat
@@ -60,24 +91,29 @@ final class MediaController: ObservableObject {
                 end using terms from
             end try
             return ""
-        end chromiumYouTubeTrack
+        end chromiumMediaTrack
 
-        on safariYouTubeTrack()
+        on safariMediaTrack()
+            set jsCode to "(() => { const metadata = navigator.mediaSession && navigator.mediaSession.metadata; const media = Array.from(document.querySelectorAll('video,audio')).find(item => !item.paused && !item.ended) || Array.from(document.querySelectorAll('video,audio'))[0]; const title = (metadata && metadata.title) || document.title || 'Browser media'; const artist = (metadata && (metadata.artist || metadata.album)) || location.hostname.replace(/^www\\\\./, ''); const state = media ? (media.paused ? 'paused' : 'playing') : 'playing'; return ['Now Playing', title, artist, state].join('||'); })();"
             try
                 tell application "Safari"
                     repeat with browserWindow in windows
                         repeat with browserTab in tabs of browserWindow
                             set tabURL to URL of browserTab as text
-                            if tabURL contains "music.youtube.com" then
+                            if my isMediaURL(tabURL) then
+                                try
+                                    set jsResult to do JavaScript jsCode in browserTab
+                                    if jsResult is not missing value and jsResult is not "" then return jsResult
+                                end try
                                 set tabTitle to name of browserTab as text
-                                return my cleanYouTubeTitle(tabTitle)
+                                return my cleanBrowserTitle(tabTitle, tabURL, my sourceNameForURL(tabURL))
                             end if
                         end repeat
                     end repeat
                 end tell
             end try
             return ""
-        end safariYouTubeTrack
+        end safariMediaTrack
 
         set foundTrack to ""
         tell application "System Events"
@@ -105,22 +141,22 @@ final class MediaController: ObservableObject {
             end tell
         end if
         if foundTrack is "" and safariOpen then
-            set foundTrack to my safariYouTubeTrack()
+            set foundTrack to my safariMediaTrack()
         end if
         if foundTrack is "" and chromeOpen then
-            set foundTrack to my chromiumYouTubeTrack("Google Chrome")
+            set foundTrack to my chromiumMediaTrack("Google Chrome")
         end if
         if foundTrack is "" and edgeOpen then
-            set foundTrack to my chromiumYouTubeTrack("Microsoft Edge")
+            set foundTrack to my chromiumMediaTrack("Microsoft Edge")
         end if
         if foundTrack is "" and braveOpen then
-            set foundTrack to my chromiumYouTubeTrack("Brave Browser")
+            set foundTrack to my chromiumMediaTrack("Brave Browser")
         end if
         if foundTrack is "" and arcOpen then
-            set foundTrack to my chromiumYouTubeTrack("Arc")
+            set foundTrack to my chromiumMediaTrack("Arc")
         end if
         if foundTrack is "" and diaOpen then
-            set foundTrack to my chromiumYouTubeTrack("Dia")
+            set foundTrack to my chromiumMediaTrack("Dia")
         end if
         set currentVolume to output volume of (get volume settings)
         if foundTrack is "" then
@@ -139,15 +175,15 @@ final class MediaController: ObservableObject {
     }
 
     func togglePlayPause() {
-        runCommand(spotify: "playpause", music: "playpause")
+        sendMediaCommand(.playPause)
     }
 
     func nextTrack() {
-        runCommand(spotify: "next track", music: "next track")
+        sendMediaCommand(.next)
     }
 
     func previousTrack() {
-        runCommand(spotify: "previous track", music: "previous track")
+        sendMediaCommand(.previous)
     }
 
     func setVolume(_ value: Double) {
@@ -156,96 +192,13 @@ final class MediaController: ObservableObject {
         snapshot.outputVolume = clamped
     }
 
-    private func runCommand(spotify spotifyCommand: String, music musicCommand: String) {
-        let activeApp = snapshot.appName
-        let script: String
-        if activeApp == "Spotify" {
-            script = """
-            tell application "Spotify" to \(spotifyCommand)
-            """
-        } else if activeApp == "YouTube Music" {
-            script = Self.youtubeMusicCommandScript(command: spotifyCommand)
-        } else {
-            script = """
-            tell application "Music" to \(musicCommand)
-            """
-        }
-
+    private func sendMediaCommand(_ command: MediaKeyService.Command) {
         DispatchQueue.global(qos: .userInitiated).async {
-            AppleScriptRunner.run(script)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            MediaKeyService.send(command)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
                 self.refresh()
             }
         }
-    }
-
-    private static func youtubeMusicCommandScript(command: String) -> String {
-        let selector: String
-        switch command {
-        case "next track":
-            selector = "tp-yt-paper-icon-button.next-button, .next-button"
-        case "previous track":
-            selector = "tp-yt-paper-icon-button.previous-button, .previous-button"
-        default:
-            selector = "#play-pause-button, tp-yt-paper-icon-button.play-pause-button, .play-pause-button"
-        }
-
-        let escapedSelector = selector
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-
-        return """
-        on clickYouTubeMusic(appName)
-            set jsCode to "(() => { const button = document.querySelector(\\\"\(escapedSelector)\\\"); if (button) { button.click(); return true; } return false; })();"
-            try
-                using terms from application "/Applications/Google Chrome.app"
-                    tell application appName
-                        repeat with browserWindow in windows
-                            repeat with browserTab in tabs of browserWindow
-                                if (URL of browserTab as text) contains "music.youtube.com" then
-                                    execute browserTab javascript jsCode
-                                    return true
-                                end if
-                            end repeat
-                        end repeat
-                    end tell
-                end using terms from
-            end try
-            return false
-        end clickYouTubeMusic
-
-        on clickSafariYouTubeMusic()
-            set jsCode to "(() => { const button = document.querySelector(\\\"\(escapedSelector)\\\"); if (button) { button.click(); return true; } return false; })();"
-            try
-                tell application "Safari"
-                    repeat with browserWindow in windows
-                        repeat with browserTab in tabs of browserWindow
-                            if (URL of browserTab as text) contains "music.youtube.com" then
-                                do JavaScript jsCode in browserTab
-                                return true
-                            end if
-                        end repeat
-                    end repeat
-                end tell
-            end try
-            return false
-        end clickSafariYouTubeMusic
-
-        tell application "System Events"
-            set safariOpen to exists (processes where name is "Safari")
-            set chromeOpen to exists (processes where name is "Google Chrome")
-            set edgeOpen to exists (processes where name is "Microsoft Edge")
-            set braveOpen to exists (processes where name is "Brave Browser")
-            set arcOpen to exists (processes where name is "Arc")
-            set diaOpen to exists (processes where name is "Dia")
-        end tell
-        if safariOpen and my clickSafariYouTubeMusic() then return
-        if chromeOpen and my clickYouTubeMusic("Google Chrome") then return
-        if edgeOpen and my clickYouTubeMusic("Microsoft Edge") then return
-        if braveOpen and my clickYouTubeMusic("Brave Browser") then return
-        if arcOpen and my clickYouTubeMusic("Arc") then return
-        if diaOpen and my clickYouTubeMusic("Dia") then return
-        """
     }
 
     private static func parse(_ output: String?) -> MediaSnapshot {

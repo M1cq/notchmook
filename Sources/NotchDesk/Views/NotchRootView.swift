@@ -157,6 +157,8 @@ private struct MediaSourceIcon: View {
         switch snapshot.appName {
         case "Spotify": "music.note"
         case "YouTube Music": "play.fill"
+        case "YouTube": "play.rectangle.fill"
+        case "Now Playing": "play.circle.fill"
         default: "music.note"
         }
     }
@@ -165,8 +167,10 @@ private struct MediaSourceIcon: View {
         switch snapshot.appName {
         case "Spotify":
             [Color(red: 0.12, green: 0.72, blue: 0.32), Color(red: 0.04, green: 0.26, blue: 0.12)]
-        case "YouTube Music":
+        case "YouTube Music", "YouTube":
             [Color(red: 0.96, green: 0.10, blue: 0.12), Color(red: 0.36, green: 0.04, blue: 0.08)]
+        case "Now Playing":
+            [Color(red: 0.18, green: 0.42, blue: 0.94), Color(red: 0.08, green: 0.12, blue: 0.34)]
         default:
             [Color(red: 0.56, green: 0.28, blue: 1.0), Color(red: 0.14, green: 0.08, blue: 0.28)]
         }
