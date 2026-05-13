@@ -27,7 +27,7 @@ struct MediaWidgetView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 13) {
-                AlbumArtView(isPlaying: controller.snapshot.isPlaying)
+                AlbumArtView(snapshot: controller.snapshot)
                     .frame(width: 94, height: 94)
                 VStack(alignment: .leading, spacing: 7) {
                     Text(controller.snapshot.appName)
@@ -98,28 +98,30 @@ struct MediaWidgetView: View {
 }
 
 private struct AlbumArtView: View {
-    let isPlaying: Bool
+    let snapshot: MediaSnapshot
 
     var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color(red: 0.30, green: 0.75, blue: 0.86),
-                            Color(red: 0.98, green: 0.41, blue: 0.47),
-                            Color(red: 0.98, green: 0.82, blue: 0.35)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
+        MediaArtworkView(artworkURL: snapshot.artworkURL, cornerRadius: 18) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color(red: 0.30, green: 0.75, blue: 0.86),
+                                Color(red: 0.98, green: 0.41, blue: 0.47),
+                                Color(red: 0.98, green: 0.82, blue: 0.35)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
                     )
-                )
-            Circle()
-                .fill(.black.opacity(0.28))
-                .frame(width: 42, height: 42)
-            Image(systemName: isPlaying ? "waveform" : "music.note")
-                .font(.system(size: 26, weight: .bold))
-                .foregroundStyle(.white)
+                Circle()
+                    .fill(.black.opacity(0.28))
+                    .frame(width: 42, height: 42)
+                Image(systemName: snapshot.isPlaying ? "waveform" : "music.note")
+                    .font(.system(size: 26, weight: .bold))
+                    .foregroundStyle(.white)
+            }
         }
         .overlay(
             RoundedRectangle(cornerRadius: 18, style: .continuous)

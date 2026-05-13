@@ -84,15 +84,11 @@ struct CollapsedNookView: View {
             HStack(spacing: 8) {
                 if hasMedia {
                     MediaSourceIcon(snapshot: snapshot)
-                    Text(snapshot.title)
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(.white.opacity(0.86))
-                        .lineLimit(1)
-                        .frame(maxWidth: 94, alignment: .leading)
+                        .frame(width: 24, height: 24)
                     Spacer(minLength: 0)
-                    Image(systemName: snapshot.isPlaying ? "waveform" : "pause.fill")
-                        .font(.system(size: 9, weight: .black))
-                        .foregroundStyle(.white.opacity(0.62))
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 11, weight: .black))
+                        .foregroundStyle(.white.opacity(0.42))
                 } else {
                     Image(systemName: "platter.filled.top.iphone")
                         .font(.system(size: 11, weight: .semibold))
@@ -104,17 +100,17 @@ struct CollapsedNookView: View {
                 }
             }
             .foregroundStyle(.white)
-            .padding(.horizontal, hasMedia ? 9 : 0)
-            .frame(width: hasMedia ? 180 : 112, height: 24)
+            .padding(.horizontal, hasMedia ? 18 : 0)
+            .frame(width: hasMedia ? 286 : 112, height: hasMedia ? 34 : 24)
             .background(
                 UnevenRoundedRectangle(
                     topLeadingRadius: 0,
-                    bottomLeadingRadius: 12,
-                    bottomTrailingRadius: 12,
+                    bottomLeadingRadius: hasMedia ? 12 : 12,
+                    bottomTrailingRadius: hasMedia ? 12 : 12,
                     topTrailingRadius: 0
                 )
                 .fill(.black)
-                .shadow(color: .black.opacity(0.12), radius: 5, y: 2)
+                .shadow(color: .black.opacity(hasMedia ? 0.08 : 0.12), radius: hasMedia ? 2 : 5, y: hasMedia ? 1 : 2)
             )
         }
         .buttonStyle(.plain)
@@ -134,17 +130,21 @@ private struct MediaSourceIcon: View {
 
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 5, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: iconColors,
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-            Image(systemName: symbol)
-                .font(.system(size: 9, weight: .black))
-                .foregroundStyle(.white)
+            MediaArtworkView(artworkURL: snapshot.artworkURL, cornerRadius: 5) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: iconColors,
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                    Image(systemName: symbol)
+                        .font(.system(size: 9, weight: .black))
+                        .foregroundStyle(.white)
+                }
+            }
         }
         .frame(width: 18, height: 18)
         .overlay(
@@ -503,7 +503,7 @@ private struct CompactMediaBlock: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            AlbumTile(isPlaying: controller.snapshot.isPlaying)
+            AlbumTile(snapshot: controller.snapshot)
                 .frame(width: 50, height: 50)
 
             VStack(alignment: .leading, spacing: 5) {
@@ -587,23 +587,27 @@ private struct CompactCalendarBlock: View {
 
 private struct AlbumTile: View {
     @EnvironmentObject private var model: NookModel
-    let isPlaying: Bool
+    let snapshot: MediaSnapshot
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
-            RoundedRectangle(cornerRadius: 15, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: model.theme.albumGradient,
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-            Image(systemName: isPlaying ? "waveform" : "music.note")
-                .font(.system(size: 23, weight: .bold))
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            Image(systemName: "music.note.list")
+            MediaArtworkView(artworkURL: snapshot.artworkURL, cornerRadius: 15) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 15, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: model.theme.albumGradient,
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                    Image(systemName: snapshot.isPlaying ? "waveform" : "music.note")
+                        .font(.system(size: 23, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            }
+            Image(systemName: badgeSymbol)
                 .font(.system(size: 12, weight: .bold))
                 .foregroundStyle(.white)
                 .frame(width: 22, height: 22)
@@ -611,8 +615,18 @@ private struct AlbumTile: View {
                 .offset(x: 4, y: 4)
         }
     }
-}
 
+    private var badgeSymbol: String {
+        switch snapshot.appName {
+        case "YouTube Music", "YouTube":
+            "play.fill"
+        case "Spotify":
+            "music.note"
+        default:
+            "music.note.list"
+        }
+    }
+}
 private struct NookActionButton: View {
     @EnvironmentObject private var model: NookModel
     let title: String

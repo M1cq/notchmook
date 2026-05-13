@@ -18,7 +18,20 @@ enum AppleScriptMediaService {
                 if playState is "playing" or playState is "paused" then
                     set trackTitle to name of current track
                     set trackArtist to artist of current track
-                    return "Music||| " & trackTitle & "||| " & trackArtist & "||| " & playState
+                    set artworkPath to ""
+                    try
+                        set artworkPath to do shell script "mktemp -t notchdesk-artwork.XXXXXX"
+                        set artworkData to raw data of artwork 1 of current track
+                        set fileRef to open for access POSIX file artworkPath with write permission
+                        set eof fileRef to 0
+                        write artworkData to fileRef
+                        close access fileRef
+                    on error
+                        try
+                            close access POSIX file artworkPath
+                        end try
+                    end try
+                    return "Music||| " & trackTitle & "||| " & trackArtist & "||| " & playState & "||| " & artworkPath
                 end if
             end tell
         end timeout
@@ -37,7 +50,11 @@ enum AppleScriptMediaService {
                 if playState is "playing" or playState is "paused" then
                     set trackTitle to name of current track
                     set trackArtist to artist of current track
-                    return "Spotify||| " & trackTitle & "||| " & trackArtist & "||| " & playState
+                    set artworkURL to ""
+                    try
+                        set artworkURL to artwork url of current track
+                    end try
+                    return "Spotify||| " & trackTitle & "||| " & trackArtist & "||| " & playState & "||| " & artworkURL
                 end if
             end tell
         end timeout
@@ -52,15 +69,22 @@ enum AppleScriptMediaService {
         let script = """
         with timeout of 1 seconds
             tell application "Google Chrome"
+                set jsCode to "(() => { const metadata = navigator.mediaSession && navigator.mediaSession.metadata; const media = Array.from(document.querySelectorAll('video,audio')).find(item => !item.paused && !item.ended) || Array.from(document.querySelectorAll('video,audio'))[0]; const art = metadata && metadata.artwork && metadata.artwork.length ? metadata.artwork[metadata.artwork.length - 1].src : ''; const artwork = art ? new URL(art, location.href).href : ''; const title = (metadata && metadata.title) || document.title || 'Browser Media'; const artist = (metadata && (metadata.artist || metadata.album)) || location.hostname.replace(/^www\\\\./, ''); const state = media ? (media.paused ? 'paused' : 'playing') : 'playing'; return [title, artist, state, artwork].join('|||'); })();"
                 repeat with browserWindow in windows
                     repeat with browserTab in tabs of browserWindow
                         set tabURL to URL of browserTab
                         if tabURL contains "music.youtube.com" then
-                            set tabTitle to title of browserTab
-                            return "YouTube Music||| " & tabTitle & "||| Google Chrome||| playing"
+                            try
+                                set jsResult to execute browserTab javascript jsCode
+                                if jsResult is not "" then return "YouTube Music||| " & jsResult
+                            end try
+                            return "YouTube Music||| " & (title of browserTab) & "||| Google Chrome||| playing||| "
                         else if tabURL contains "youtube.com/watch" then
-                            set tabTitle to title of browserTab
-                            return "YouTube||| " & tabTitle & "||| Google Chrome||| playing"
+                            try
+                                set jsResult to execute browserTab javascript jsCode
+                                if jsResult is not "" then return "YouTube||| " & jsResult
+                            end try
+                            return "YouTube||| " & (title of browserTab) & "||| Google Chrome||| playing||| "
                         end if
                     end repeat
                 end repeat
@@ -84,6 +108,7 @@ enum AppleScriptMediaService {
         let rawTitle = parts[safe: 1] ?? appName
         let rawArtist = parts[safe: 2] ?? "Now Playing"
         let state = normalizedState(parts[safe: 3] ?? "playing")
+        let artworkURL = parsedArtworkURL(parts[safe: 4])
         let cleaned = cleanedBrowserTitle(rawTitle, appName: appName)
         let split = splitTitle(cleaned, fallbackArtist: rawArtist)
 
@@ -93,6 +118,7 @@ enum AppleScriptMediaService {
             artist: split.artist,
             state: state,
             outputVolume: volume,
+            artworkURL: artworkURL,
             lastUpdated: Date()
         )
     }
@@ -129,6 +155,17 @@ enum AppleScriptMediaService {
         }
 
         return (rawTitle, fallbackArtist.isEmpty ? "Now Playing" : fallbackArtist)
+    }
+
+    private static func parsedArtworkURL(_ rawValue: String?) -> URL? {
+        guard let rawValue else { return nil }
+        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.isEmpty == false else { return nil }
+
+        if trimmed.hasPrefix("http://") || trimmed.hasPrefix("https://") {
+            return URL(string: trimmed)
+        }
+        return URL(fileURLWithPath: trimmed)
     }
 }
 

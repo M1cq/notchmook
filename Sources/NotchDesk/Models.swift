@@ -150,6 +150,7 @@ struct MediaSnapshot {
     var artist = "Open Music or Spotify"
     var state = "stopped"
     var outputVolume = 50
+    var artworkURL: URL?
     var lastUpdated = Date()
 
     var isPlaying: Bool {

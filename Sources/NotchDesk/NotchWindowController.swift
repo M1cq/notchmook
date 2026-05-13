@@ -7,7 +7,9 @@ final class NotchWindowController: NSWindowController {
     private var cancellables = Set<AnyCancellable>()
 
     private let collapsedSize = NSSize(width: 180, height: 24)
+    private let collapsedHoverSize = NSSize(width: 76, height: 16)
     private let expandedSize = NSSize(width: 590, height: 116)
+    private var hoverTimer: Timer?
 
     init(model: NookModel) {
         self.model = model
@@ -38,7 +40,7 @@ final class NotchWindowController: NSWindowController {
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
         panel.hidesOnDeactivate = false
         panel.isMovableByWindowBackground = false
-        panel.ignoresMouseEvents = false
+        panel.ignoresMouseEvents = true
         panel.acceptsMouseMovedEvents = true
 
         super.init(window: panel)
@@ -49,6 +51,7 @@ final class NotchWindowController: NSWindowController {
 
         panel.orderFrontRegardless()
         bindModel()
+        startCollapsedHoverMonitor()
         reposition(animated: false)
 
         NotificationCenter.default.addObserver(
@@ -65,10 +68,17 @@ final class NotchWindowController: NSWindowController {
     }
 
     deinit {
+        hoverTimer?.invalidate()
         NotificationCenter.default.removeObserver(self)
     }
 
     private func bindModel() {
+        model.$isExpanded
+            .receive(on: RunLoop.main)
+            .sink { [weak self] isExpanded in
+                self?.window?.ignoresMouseEvents = !isExpanded
+            }
+            .store(in: &cancellables)
     }
 
     @objc private func screenParametersChanged() {
@@ -100,6 +110,36 @@ final class NotchWindowController: NSWindowController {
 
     private func targetScreen() -> NSScreen {
         NSScreen.main ?? NSScreen.screens[0]
+    }
+
+    private func startCollapsedHoverMonitor() {
+        hoverTimer?.invalidate()
+        let timer = Timer(timeInterval: 0.05, repeats: true) { [weak self] _ in
+            self?.expandIfPointerIsAtNotch()
+        }
+        hoverTimer = timer
+        RunLoop.main.add(timer, forMode: .common)
+    }
+
+    private func expandIfPointerIsAtNotch() {
+        guard model.autoExpandOnHover, model.isExpanded == false else { return }
+
+        let point = NSEvent.mouseLocation
+        guard collapsedHoverScreenRect().contains(point) else { return }
+
+        window?.orderFrontRegardless()
+        model.expand()
+    }
+
+    private func collapsedHoverScreenRect() -> NSRect {
+        let screen = targetScreen()
+        let frame = screen.frame
+        return NSRect(
+            x: frame.midX - (collapsedHoverSize.width / 2),
+            y: frame.maxY - collapsedHoverSize.height,
+            width: collapsedHoverSize.width,
+            height: collapsedHoverSize.height
+        )
     }
 }
 

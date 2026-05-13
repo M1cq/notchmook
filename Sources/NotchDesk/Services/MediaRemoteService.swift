@@ -65,6 +65,7 @@ enum MediaRemoteService {
             "kMRMediaRemoteNowPlayingInfoPlaybackRate",
             "playbackRate"
         ]) ?? 1
+        let artworkURL = artworkURL(from: dictionary, appName: appName, title: title)
 
         return MediaSnapshot(
             appName: displayName(for: appName),
@@ -72,6 +73,7 @@ enum MediaRemoteService {
             artist: artist ?? "Now Playing",
             state: playbackRate == 0 ? "paused" : "playing",
             outputVolume: volume,
+            artworkURL: artworkURL,
             lastUpdated: Date()
         )
     }
@@ -92,6 +94,47 @@ enum MediaRemoteService {
             }
         }
         return nil
+    }
+
+    private static func dataValue(_ dictionary: NSDictionary, keys: [String]) -> Data? {
+        for key in keys {
+            if let data = dictionary[key] as? Data, data.isEmpty == false {
+                return data
+            }
+        }
+        return nil
+    }
+
+    private static func artworkURL(from dictionary: NSDictionary, appName: String, title: String) -> URL? {
+        guard let data = dataValue(dictionary, keys: [
+            "kMRMediaRemoteNowPlayingInfoArtworkData",
+            "kMRMediaRemoteNowPlayingInfoArtworkDataDigest",
+            "artworkData",
+            "artwork"
+        ]) else {
+            return nil
+        }
+
+        let mimeType = stringValue(dictionary, keys: [
+            "kMRMediaRemoteNowPlayingInfoArtworkMIMEType",
+            "artworkMIMEType"
+        ])
+        let ext = mimeType?.localizedCaseInsensitiveContains("png") == true ? "png" : "jpg"
+        let filename = "\(appName)-\(title)"
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { $0.isEmpty == false }
+            .joined(separator: "-")
+            .prefix(90)
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("NotchDeskArtwork", isDirectory: true)
+        let url = directory.appendingPathComponent("\(filename).\(ext)")
+
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try data.write(to: url, options: [.atomic])
+            return url
+        } catch {
+            return nil
+        }
     }
 
     private static func displayName(for rawValue: String) -> String {
