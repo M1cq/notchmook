@@ -503,13 +503,7 @@ private struct CustomNookWidget: View {
     var body: some View {
         switch config.kind {
         case .actions:
-            VStack(spacing: 8) {
-                ForEach(Array(model.nookActions.prefix(2).enumerated()), id: \.element.id) { _, action in
-                    NookActionButton(title: action.title, icon: action.symbol, tint: action.tint) {
-                        model.performNookAction(action)
-                    }
-                }
-            }
+            NookActionsWidget()
         case .media:
             CompactMediaBlock(controller: model.mediaController)
         case .calendar:
@@ -520,6 +514,36 @@ private struct CustomNookWidget: View {
             CustomShortcutsWidget()
         case .notes:
             NotesWidget()
+        }
+    }
+}
+
+private struct NookActionsWidget: View {
+    @EnvironmentObject private var model: NookModel
+
+    var body: some View {
+        GeometryReader { proxy in
+            let scale = min(1, max(0, (proxy.size.width - 118) / 110))
+            let spacing = 8 + (2 * scale)
+            let buttonHeight = min(31, max(28, (proxy.size.height - spacing) / 2))
+            let titleSize = 10 + (2 * scale)
+            let iconSize = 10 + (2 * scale)
+
+            VStack(spacing: spacing) {
+                ForEach(Array(model.nookActions.prefix(2).enumerated()), id: \.element.id) { _, action in
+                    NookActionButton(
+                        title: action.title,
+                        icon: action.symbol,
+                        tint: action.tint,
+                        height: buttonHeight,
+                        titleSize: titleSize,
+                        iconSize: iconSize
+                    ) {
+                        model.performNookAction(action)
+                    }
+                }
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height, alignment: .center)
         }
     }
 }
@@ -813,29 +837,46 @@ private struct CompactMediaBlock: View {
     @ObservedObject var controller: MediaController
 
     var body: some View {
-        HStack(spacing: 10) {
-            AlbumTile(snapshot: controller.snapshot)
-                .frame(width: 50, height: 50)
+        GeometryReader { proxy in
+            let width = proxy.size.width
+            let scale = min(1, max(0, (width - 140) / 90))
+            let artworkSize = 50 + (14 * scale)
+            let titleSize = 11 + (3 * scale)
+            let artistSize = 9 + (2 * scale)
+            let controlSize = 10 + (2 * scale)
+            let controlSpacing = 12 + (4 * scale)
 
-            VStack(alignment: .leading, spacing: 5) {
-                Text(controller.snapshot.title)
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(.white)
-                    .lineLimit(2)
-                Text(controller.snapshot.artist)
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.58))
-                    .lineLimit(1)
-                HStack(spacing: 12) {
-                    Button { controller.previousTrack() } label: { Image(systemName: "backward.fill") }
-                    Button { controller.togglePlayPause() } label: { Image(systemName: controller.snapshot.isPlaying ? "pause.fill" : "play.fill") }
-                    Button { controller.nextTrack() } label: { Image(systemName: "forward.fill") }
+            HStack(spacing: 10 + (2 * scale)) {
+                AlbumTile(snapshot: controller.snapshot)
+                    .frame(width: artworkSize, height: artworkSize)
+
+                VStack(alignment: .leading, spacing: 4 + (2 * scale)) {
+                    Text(controller.snapshot.title)
+                        .font(.system(size: titleSize, weight: .black))
+                        .foregroundStyle(.white)
+                        .lineLimit(scale > 0.65 ? 2 : 1)
+                        .minimumScaleFactor(0.82)
+
+                    Text(controller.snapshot.artist)
+                        .font(.system(size: artistSize, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.58))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.82)
+
+                    HStack(spacing: controlSpacing) {
+                        Button { controller.previousTrack() } label: { Image(systemName: "backward.fill") }
+                        Button { controller.togglePlayPause() } label: { Image(systemName: controller.snapshot.isPlaying ? "pause.fill" : "play.fill") }
+                        Button { controller.nextTrack() } label: { Image(systemName: "forward.fill") }
+                    }
+                    .font(.system(size: controlSize, weight: .black))
+                    .foregroundStyle(.white.opacity(0.88))
+                    .buttonStyle(.plain)
                 }
-                .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(.white.opacity(0.86))
-                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .frame(width: proxy.size.width, height: proxy.size.height, alignment: .leading)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear { controller.refresh() }
     }
 }
