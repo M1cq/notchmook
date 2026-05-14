@@ -25,7 +25,7 @@ struct NotchRootView: View {
             CollapsedNookView()
                 .scaleEffect(expanded ? 0.82 : (peeking ? 1.0 : 0.98), anchor: .top)
                 .opacity(expanded ? 0.0 : 1.0)
-                .offset(y: expanded ? -4 : -1)
+                .offset(y: expanded ? -4 : -2)
                 .allowsHitTesting(!expanded)
         }
         .frame(width: panelSize.width, height: panelSize.height, alignment: .top)
@@ -90,11 +90,9 @@ struct CollapsedNookView: View {
             HStack(spacing: 8) {
                 if hasMedia {
                     MediaSourceIcon(snapshot: snapshot)
-                        .frame(width: 24, height: 24)
+                        .frame(width: 22, height: 22)
                     Spacer(minLength: 0)
-                    Image(systemName: "ellipsis")
-                        .font(.system(size: 11, weight: .black))
-                        .foregroundStyle(.white.opacity(0.42))
+                    CollapsedAudioActivity(isPlaying: snapshot.isPlaying)
                 } else {
                     Image(systemName: "platter.filled.top.iphone")
                         .font(.system(size: 11, weight: .semibold))
@@ -106,7 +104,7 @@ struct CollapsedNookView: View {
                 }
             }
             .foregroundStyle(.white)
-            .padding(.horizontal, hasMedia ? 18 : (peeking ? 14 : 0))
+            .padding(.horizontal, hasMedia ? 14 : (peeking ? 14 : 0))
             .frame(width: width(hasMedia: hasMedia, peeking: peeking), height: height(hasMedia: hasMedia, peeking: peeking))
             .background(
                 UnevenRoundedRectangle(
@@ -136,7 +134,7 @@ struct CollapsedNookView: View {
 
     private func width(hasMedia: Bool, peeking: Bool) -> CGFloat {
         if hasMedia {
-            return peeking ? 318 : 286
+            return peeking ? 286 : 252
         }
         return peeking ? 158 : 112
     }
@@ -146,6 +144,37 @@ struct CollapsedNookView: View {
             return peeking ? 40 : 34
         }
         return peeking ? 32 : 24
+    }
+}
+
+private struct CollapsedAudioActivity: View {
+    let isPlaying: Bool
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: isPlaying ? 0.10 : 1.0)) { timeline in
+            let phase = timeline.date.timeIntervalSinceReferenceDate
+
+            HStack(alignment: .center, spacing: 3) {
+                ForEach(0..<6, id: \.self) { index in
+                    Capsule()
+                        .fill(.white.opacity(isPlaying ? 0.72 : 0.34))
+                        .frame(width: 3, height: barHeight(index: index, phase: phase))
+                }
+            }
+            .frame(width: 34, height: 18)
+            .opacity(isPlaying ? 1.0 : 0.55)
+        }
+    }
+
+    private func barHeight(index: Int, phase: TimeInterval) -> CGFloat {
+        guard isPlaying else {
+            return CGFloat([5, 8, 4, 10, 6, 8][index])
+        }
+
+        let offsets: [Double] = [0.0, 0.9, 1.8, 2.7, 1.2, 2.2]
+        let base = sin((phase * 5.2) + offsets[index])
+        let normalized = (base + 1.0) / 2.0
+        return 5 + CGFloat(normalized) * 13
     }
 }
 
@@ -382,20 +411,7 @@ private struct ClassicNookStripContent: View {
 
             VerticalSeparator()
 
-            Button {
-                model.expand(tab: .mirror)
-            } label: {
-                VStack(spacing: 4) {
-                    Image(systemName: "camera.circle.fill")
-                        .font(.system(size: 23, weight: .semibold))
-                    Text("ミラー")
-                        .font(.system(size: 9, weight: .bold))
-                }
-                .foregroundStyle(.white.opacity(0.78))
-                .frame(width: 48, height: 54)
-                .background(Circle().fill(.black.opacity(0.32)))
-            }
-            .buttonStyle(.plain)
+            MirrorWidgetButton(size: 54, iconSize: 22)
 
             VerticalSeparator()
 
@@ -440,20 +456,7 @@ private struct MusicLargeNookStripContent: View {
 
             VerticalSeparator()
 
-            Button {
-                model.expand(tab: .mirror)
-            } label: {
-                VStack(spacing: 4) {
-                    Image(systemName: "camera.circle.fill")
-                        .font(.system(size: 25, weight: .semibold))
-                    Text("ミラー")
-                        .font(.system(size: 9, weight: .bold))
-                }
-                .foregroundStyle(.white.opacity(0.76))
-                .frame(width: 62, height: 62)
-                .background(Circle().fill(.white.opacity(0.08)))
-            }
-            .buttonStyle(.plain)
+            MirrorWidgetButton(size: 64, iconSize: 25)
         }
         .frame(maxWidth: .infinity)
     }
@@ -517,20 +520,48 @@ private struct CustomNookWidget: View {
 
 private struct MirrorWidgetButton: View {
     @EnvironmentObject private var model: NookModel
+    var size: CGFloat = 58
+    var iconSize: CGFloat = 23
 
     var body: some View {
         Button {
             model.expand(tab: .mirror)
         } label: {
-            VStack(spacing: 4) {
-                Image(systemName: "camera.circle.fill")
-                    .font(.system(size: 23, weight: .semibold))
-                Text("ミラー")
-                    .font(.system(size: 9, weight: .bold))
+            ZStack {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(model.theme == .black ? 0.13 : 0.10),
+                                Color.black.opacity(model.theme == .black ? 0.78 : 0.42)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .overlay(
+                        Circle()
+                            .stroke(.white.opacity(model.theme == .black ? 0.22 : 0.14), lineWidth: 1)
+                    )
+                    .overlay(
+                        Circle()
+                            .stroke(.black.opacity(0.34), lineWidth: 1)
+                            .blur(radius: 0.6)
+                            .offset(y: 1)
+                            .mask(Circle().fill(LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom)))
+                    )
+
+                VStack(spacing: 3) {
+                    Image(systemName: "web.camera.fill")
+                        .font(.system(size: iconSize, weight: .bold))
+                    Text("ミラー")
+                        .font(.system(size: 9, weight: .black))
+                }
+                .foregroundStyle(.white.opacity(0.68))
             }
-            .foregroundStyle(.white.opacity(0.78))
+            .frame(width: size, height: size)
+            .shadow(color: .black.opacity(0.22), radius: 5, y: 2)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Circle().fill(.black.opacity(0.32)))
         }
         .buttonStyle(.plain)
     }
@@ -587,9 +618,11 @@ private struct TrayStripContent: View {
     @EnvironmentObject private var model: NookModel
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             CompactDropZone()
-            AirDropDropZone()
+                .frame(maxWidth: .infinity, minHeight: 64)
+            AirDropDropZone(width: 0, height: 64, compact: false)
+                .frame(maxWidth: .infinity, minHeight: 64)
 
             if model.trayItems.isEmpty == false {
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -931,18 +964,35 @@ private struct VerticalSeparator: View {
 
 private struct CompactDropZone: View {
     var body: some View {
-        VStack(spacing: 5) {
-            Image(systemName: "arrow.down.doc.fill")
-                .font(.system(size: 17, weight: .semibold))
-            Text("Drop files here")
-                .font(.system(size: 10, weight: .bold))
+        HStack(spacing: 12) {
+            Image(systemName: "tray.full.fill")
+                .font(.system(size: 19, weight: .bold))
+                .foregroundStyle(.blue.opacity(0.90))
+                .frame(width: 26)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("ファイルトレイ")
+                    .font(.system(size: 12, weight: .black))
+                    .foregroundStyle(.white.opacity(0.82))
+                Text("Drop files here")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.45))
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 0)
         }
-        .foregroundStyle(.white.opacity(0.72))
-        .frame(width: 154, height: 56)
+        .padding(.horizontal, 16)
+        .frame(maxWidth: .infinity, minHeight: 64, maxHeight: 64)
         .background(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(style: StrokeStyle(lineWidth: 1.2, dash: [6, 6]))
-                .foregroundStyle(.white.opacity(0.22))
+                .fill(.black.opacity(0.16))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(
+                            Color.blue.opacity(0.55),
+                            style: StrokeStyle(lineWidth: 1.4, dash: [6, 7])
+                        )
+                )
         )
     }
 }
