@@ -8,6 +8,7 @@ struct NotchRootView: View {
 
     var body: some View {
         let expanded = model.isExpanded
+        let peeking = model.isPeeking && expanded == false
 
         ZStack(alignment: .top) {
             ExpandedNookView()
@@ -22,9 +23,9 @@ struct NotchRootView: View {
                 .allowsHitTesting(expanded)
 
             CollapsedNookView()
-                .scaleEffect(expanded ? 0.82 : 1.0, anchor: .top)
+                .scaleEffect(expanded ? 0.82 : (peeking ? 1.0 : 0.98), anchor: .top)
                 .opacity(expanded ? 0.0 : 1.0)
-                .offset(y: expanded ? -4 : 0)
+                .offset(y: expanded ? -4 : -1)
                 .allowsHitTesting(!expanded)
         }
         .frame(width: panelSize.width, height: panelSize.height, alignment: .top)
@@ -33,6 +34,10 @@ struct NotchRootView: View {
         .animation(
             .interpolatingSpring(mass: 0.72, stiffness: 310, damping: 34, initialVelocity: 0.08),
             value: model.isExpanded
+        )
+        .animation(
+            .interpolatingSpring(mass: 0.60, stiffness: 420, damping: 36, initialVelocity: 0.04),
+            value: model.isPeeking
         )
         .onDrop(of: [.fileURL], isTargeted: nil) { providers in
             handleDrop(providers)
@@ -77,6 +82,7 @@ struct CollapsedNookView: View {
     var body: some View {
         let snapshot = model.mediaController.snapshot
         let hasMedia = snapshot.hasMedia
+        let peeking = model.isPeeking
 
         Button {
             model.expand()
@@ -100,17 +106,17 @@ struct CollapsedNookView: View {
                 }
             }
             .foregroundStyle(.white)
-            .padding(.horizontal, hasMedia ? 18 : 0)
-            .frame(width: hasMedia ? 286 : 112, height: hasMedia ? 34 : 24)
+            .padding(.horizontal, hasMedia ? 18 : (peeking ? 14 : 0))
+            .frame(width: width(hasMedia: hasMedia, peeking: peeking), height: height(hasMedia: hasMedia, peeking: peeking))
             .background(
                 UnevenRoundedRectangle(
                     topLeadingRadius: 0,
-                    bottomLeadingRadius: hasMedia ? 12 : 12,
-                    bottomTrailingRadius: hasMedia ? 12 : 12,
+                    bottomLeadingRadius: peeking ? 16 : 12,
+                    bottomTrailingRadius: peeking ? 16 : 12,
                     topTrailingRadius: 0
                 )
                 .fill(.black)
-                .shadow(color: .black.opacity(hasMedia ? 0.08 : 0.12), radius: hasMedia ? 2 : 5, y: hasMedia ? 1 : 2)
+                .shadow(color: .black.opacity(peeking ? 0.26 : (hasMedia ? 0.08 : 0.12)), radius: peeking ? 10 : (hasMedia ? 2 : 5), y: peeking ? 4 : (hasMedia ? 1 : 2))
             )
         }
         .buttonStyle(.plain)
@@ -119,9 +125,27 @@ struct CollapsedNookView: View {
             .interpolatingSpring(mass: 0.68, stiffness: 360, damping: 38, initialVelocity: 0.05),
             value: hasMedia
         )
+        .animation(
+            .interpolatingSpring(mass: 0.60, stiffness: 420, damping: 36, initialVelocity: 0.04),
+            value: model.isPeeking
+        )
         .onAppear {
             model.mediaController.refresh()
         }
+    }
+
+    private func width(hasMedia: Bool, peeking: Bool) -> CGFloat {
+        if hasMedia {
+            return peeking ? 318 : 286
+        }
+        return peeking ? 158 : 112
+    }
+
+    private func height(hasMedia: Bool, peeking: Bool) -> CGFloat {
+        if hasMedia {
+            return peeking ? 40 : 34
+        }
+        return peeking ? 32 : 24
     }
 }
 

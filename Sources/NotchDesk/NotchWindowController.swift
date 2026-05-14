@@ -6,8 +6,7 @@ final class NotchWindowController: NSWindowController {
     private let model: NookModel
     private var cancellables = Set<AnyCancellable>()
 
-    private let collapsedSize = NSSize(width: 180, height: 24)
-    private let collapsedHoverSize = NSSize(width: 76, height: 16)
+    private let collapsedHoverSize = NSSize(width: 68, height: 14)
     private let expandedSize = NSSize(width: 590, height: 116)
     private var hoverTimer: Timer?
 
@@ -223,30 +222,16 @@ private final class ClearHostingView<Content: View>: NSHostingView<Content> {
 
     override func mouseMoved(with event: NSEvent) {
         super.mouseMoved(with: event)
-        guard let model, model.autoExpandOnHover, model.isExpanded == false else { return }
-
-        let point = convert(event.locationInWindow, from: nil)
-        if shouldExpandFromCollapsed(at: point) {
-            model.peek()
-        }
     }
 
     override func mouseEntered(with event: NSEvent) {
         super.mouseEntered(with: event)
-        guard let model, model.autoExpandOnHover, model.isExpanded == false else { return }
-
-        let point = convert(event.locationInWindow, from: nil)
-        if shouldExpandFromCollapsed(at: point) {
-            model.peek()
-        }
     }
 
     override func mouseExited(with event: NSEvent) {
         super.mouseExited(with: event)
         if model?.isExpanded == true {
             model?.scheduleCollapse()
-        } else {
-            model?.collapsePeek()
         }
     }
 
@@ -283,10 +268,10 @@ private final class ClearHostingView<Content: View>: NSHostingView<Content> {
 
     private var collapsedHoverRect: NSRect {
         NSRect(
-            x: bounds.midX - 38,
-            y: bounds.maxY - 16,
-            width: 76,
-            height: 16
+            x: bounds.midX - 34,
+            y: bounds.maxY - 14,
+            width: 68,
+            height: 14
         )
     }
 
