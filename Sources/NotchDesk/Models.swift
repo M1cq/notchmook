@@ -144,6 +144,109 @@ struct NookShortcut: Identifiable {
     let action: () -> Void
 }
 
+struct CustomShortcutItem: Identifiable, Codable, Equatable {
+    let id: UUID
+    var title: String
+    var shortcutName: String
+    var symbol: String
+    var tintName: String
+
+    init(
+        id: UUID = UUID(),
+        title: String,
+        shortcutName: String,
+        symbol: String = "sparkles",
+        tintName: String = "purple"
+    ) {
+        self.id = id
+        self.title = title
+        self.shortcutName = shortcutName
+        self.symbol = symbol
+        self.tintName = tintName
+    }
+
+    var tint: Color {
+        switch tintName {
+        case "pink": .pink
+        case "orange": .orange
+        case "blue": .blue
+        case "green": .green
+        case "cyan": .cyan
+        case "red": .red
+        case "gray": .gray
+        default: .purple
+        }
+    }
+}
+
+struct NookActionConfig: Identifiable, Codable, Equatable {
+    let id: UUID
+    var title: String
+    var subtitle: String
+    var symbol: String
+    var tintName: String
+    var kind: String
+    var value: String
+
+    init(
+        id: UUID = UUID(),
+        title: String,
+        subtitle: String,
+        symbol: String,
+        tintName: String = "purple",
+        kind: String,
+        value: String
+    ) {
+        self.id = id
+        self.title = title
+        self.subtitle = subtitle
+        self.symbol = symbol
+        self.tintName = tintName
+        self.kind = kind
+        self.value = value
+    }
+
+    var tint: Color {
+        switch tintName {
+        case "pink": .pink
+        case "orange": .orange
+        case "blue": .blue
+        case "green": .green
+        case "cyan": .cyan
+        case "red": .red
+        case "gray": .gray
+        default: .purple
+        }
+    }
+
+    static let defaults = [
+        NookActionConfig(
+            title: "AirDrop",
+            subtitle: "Share tray",
+            symbol: "sparkles",
+            tintName: "cyan",
+            kind: "builtIn",
+            value: "airDrop"
+        ),
+        NookActionConfig(
+            title: "Open Music",
+            subtitle: "Open player",
+            symbol: "music.note",
+            tintName: "pink",
+            kind: "builtIn",
+            value: "openMusic"
+        )
+    ]
+
+    static let builtInOptions = [
+        NookActionConfig(title: "AirDrop", subtitle: "Share tray", symbol: "sparkles", tintName: "cyan", kind: "builtIn", value: "airDrop"),
+        NookActionConfig(title: "Open Music", subtitle: "Open player", symbol: "music.note", tintName: "pink", kind: "builtIn", value: "openMusic"),
+        NookActionConfig(title: "Calendar", subtitle: "Open app", symbol: "calendar", tintName: "orange", kind: "builtIn", value: "openCalendar"),
+        NookActionConfig(title: "Mirror", subtitle: "Camera", symbol: "camera.viewfinder", tintName: "blue", kind: "builtIn", value: "mirror"),
+        NookActionConfig(title: "Clear Tray", subtitle: "Empty files", symbol: "trash", tintName: "red", kind: "builtIn", value: "clearTray")
+    ]
+}
+
 struct MediaSnapshot {
     var appName = "Music"
     var title = "No media playing"

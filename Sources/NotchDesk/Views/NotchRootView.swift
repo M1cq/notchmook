@@ -228,8 +228,8 @@ private struct HeaderTabs: View {
             CompactTabButton(tab: .dashboard, title: "Nook", icon: "platter.filled.top.iphone")
             CompactTabButton(tab: .tray, title: "トレイ", icon: "tray.full")
             Spacer()
+            CompactTabButton(tab: .shortcuts, title: "Quick", icon: "bolt.fill")
             CompactIconTab(tab: .mirror, icon: "camera.viewfinder")
-            CompactIconTab(tab: .shortcuts, icon: "bolt.fill")
             CompactIconTab(tab: .settings, icon: "gearshape.fill")
         }
         .frame(height: 22)
@@ -331,11 +331,10 @@ private struct NookStripContent: View {
     var body: some View {
         HStack(spacing: 12) {
             VStack(spacing: 8) {
-                NookActionButton(title: "AirDrop", icon: "sparkles") {
-                    openAirDrop()
-                }
-                NookActionButton(title: "Open Music", icon: "sparkles") {
-                    NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Music.app"))
+                ForEach(Array(model.nookActions.prefix(2).enumerated()), id: \.element.id) { _, action in
+                    NookActionButton(title: action.title, icon: action.symbol, tint: action.tint) {
+                        model.performNookAction(action)
+                    }
                 }
             }
             .frame(width: 126)
@@ -368,10 +367,6 @@ private struct NookStripContent: View {
                 .frame(width: 140)
         }
         .frame(maxWidth: .infinity)
-    }
-
-    private func openAirDrop() {
-        AirDropService.share(model.trayItems.map(\.url))
     }
 }
 
@@ -470,10 +465,31 @@ private struct SettingsStripContent: View {
         HStack(spacing: 12) {
             CompactToggle(title: "Hover", isOn: $model.autoExpandOnHover)
             CompactToggle(title: "Pinned", isOn: $model.isPinned)
+            SettingsWindowButton()
             PermissionButton()
             ThemeSwatches()
             Spacer()
         }
+    }
+}
+
+private struct SettingsWindowButton: View {
+    var body: some View {
+        Button {
+            (NSApp.delegate as? AppDelegate)?.showSettingsWindow()
+        } label: {
+            VStack(spacing: 6) {
+                Image(systemName: "slider.horizontal.3")
+                    .font(.system(size: 15, weight: .bold))
+                Text("Edit")
+                    .font(.system(size: 9, weight: .bold))
+            }
+            .foregroundStyle(.white)
+            .frame(width: 58, height: 54)
+            .background(RoundedRectangle(cornerRadius: 15, style: .continuous).fill(.black.opacity(0.24)))
+        }
+        .buttonStyle(.plain)
+        .help("Open customization settings")
     }
 }
 
@@ -631,6 +647,7 @@ private struct NookActionButton: View {
     @EnvironmentObject private var model: NookModel
     let title: String
     let icon: String
+    var tint: Color?
     let action: () -> Void
 
     var body: some View {
@@ -638,7 +655,7 @@ private struct NookActionButton: View {
             HStack(spacing: 6) {
             Image(systemName: icon)
                     .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(model.theme.accent)
+                    .foregroundStyle(tint ?? model.theme.accent)
                 Text(title)
                     .font(.system(size: 10, weight: .bold))
                     .foregroundStyle(.white)

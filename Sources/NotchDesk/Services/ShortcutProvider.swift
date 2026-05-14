@@ -4,7 +4,19 @@ import SwiftUI
 struct ShortcutProvider {
     weak var model: NookModel?
 
-    var shortcuts: [NookShortcut] {
+    func shortcuts(customItems: [CustomShortcutItem]) -> [NookShortcut] {
+        customItems.map { item in
+            NookShortcut(
+                title: item.title,
+                subtitle: "Run Shortcut",
+                symbol: item.symbol,
+                tint: item.tint,
+                action: { Self.runShortcut(named: item.shortcutName) }
+            )
+        } + builtInShortcuts
+    }
+
+    var builtInShortcuts: [NookShortcut] {
         [
             NookShortcut(
                 title: "Music",
@@ -51,6 +63,19 @@ struct ShortcutProvider {
         ]
     }
 
+    static func availableShortcutNames() -> [String] {
+        processOutput(executable: "/usr/bin/shortcuts", arguments: ["list"])
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { $0.isEmpty == false }
+    }
+
+    static func runShortcut(named name: String) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            _ = processOutput(executable: "/usr/bin/shortcuts", arguments: ["run", name])
+        }
+    }
+
     private func openApp(named name: String) {
         NSWorkspace.shared.open(appURL(named: name))
     }
@@ -65,4 +90,24 @@ struct ShortcutProvider {
         return candidates.first { FileManager.default.fileExists(atPath: $0.path) } ?? candidates[0]
     }
 
+}
+
+private func processOutput(executable: String, arguments: [String]) -> String {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: executable)
+    process.arguments = arguments
+
+    let pipe = Pipe()
+    process.standardOutput = pipe
+    process.standardError = Pipe()
+
+    do {
+        try process.run()
+        process.waitUntilExit()
+
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        return String(data: data, encoding: .utf8) ?? ""
+    } catch {
+        return ""
+    }
 }

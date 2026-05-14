@@ -9,6 +9,18 @@ final class NookModel: ObservableObject {
     @Published var trayItems: [TrayItem] = []
     @Published var autoExpandOnHover = true
     @Published var notchlessHandler = true
+    @Published var customShortcutItems: [CustomShortcutItem] = [] {
+        didSet {
+            saveCustomShortcuts()
+            rebuildShortcuts()
+        }
+    }
+    @Published var nookActions: [NookActionConfig] = NookActionConfig.defaults {
+        didSet {
+            saveNookActions()
+        }
+    }
+    @Published private(set) var availableShortcutNames: [String] = []
     @Published var theme: NookTheme {
         didSet {
             UserDefaults.standard.set(theme.rawValue, forKey: Self.themeDefaultsKey)
@@ -18,15 +30,31 @@ final class NookModel: ObservableObject {
     let mediaController = MediaController()
     let calendarProvider = CalendarProvider()
     let cameraController = CameraController()
-    lazy var shortcuts = ShortcutProvider(model: self).shortcuts
+    @Published private(set) var shortcuts: [NookShortcut] = []
 
     private var collapseTask: DispatchWorkItem?
     private static let themeDefaultsKey = "NotchDesk.theme"
+    private static let shortcutsDefaultsKey = "NotchDesk.customShortcuts"
+    private static let nookActionsDefaultsKey = "NotchDesk.nookActions"
 
     init() {
         let storedTheme = UserDefaults.standard.string(forKey: Self.themeDefaultsKey)
             .flatMap(NookTheme.init(rawValue:))
         theme = storedTheme ?? .dusk
+
+        if let data = UserDefaults.standard.data(forKey: Self.nookActionsDefaultsKey),
+           let decoded = try? JSONDecoder().decode([NookActionConfig].self, from: data),
+           decoded.isEmpty == false {
+            nookActions = Array(decoded.prefix(2))
+        }
+
+        if let data = UserDefaults.standard.data(forKey: Self.shortcutsDefaultsKey),
+           let decoded = try? JSONDecoder().decode([CustomShortcutItem].self, from: data) {
+            customShortcutItems = decoded
+        }
+
+        rebuildShortcuts()
+        refreshAvailableShortcutNames()
     }
 
     func expand(tab: NookTab? = nil) {
@@ -66,5 +94,101 @@ final class NookModel: ObservableObject {
 
     func clearTray() {
         trayItems.removeAll()
+    }
+
+    func performNookAction(_ action: NookActionConfig) {
+        switch (action.kind, action.value) {
+        case ("builtIn", "airDrop"):
+            AirDropService.share(trayItems.map(\.url))
+        case ("builtIn", "openMusic"):
+            openApp(named: "Music")
+        case ("builtIn", "openCalendar"):
+            openApp(named: "Calendar")
+        case ("builtIn", "mirror"):
+            expand(tab: .mirror)
+        case ("builtIn", "clearTray"):
+            clearTray()
+        case ("shortcut", let name):
+            ShortcutProvider.runShortcut(named: name)
+        default:
+            break
+        }
+    }
+
+    func setNookAction(_ action: NookActionConfig, at index: Int) {
+        var next = normalizedNookActions()
+        guard next.indices.contains(index) else { return }
+        next[index] = action
+        nookActions = next
+    }
+
+    func customShortcutNookAction(named name: String) -> NookActionConfig {
+        NookActionConfig(
+            title: name,
+            subtitle: "Shortcut",
+            symbol: "sparkles",
+            tintName: "purple",
+            kind: "shortcut",
+            value: name
+        )
+    }
+
+    func refreshAvailableShortcutNames() {
+        DispatchQueue.global(qos: .utility).async {
+            let names = ShortcutProvider.availableShortcutNames()
+            DispatchQueue.main.async {
+                self.availableShortcutNames = names
+            }
+        }
+    }
+
+    func addShortcut(named name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.isEmpty == false,
+              customShortcutItems.contains(where: { $0.shortcutName == trimmed }) == false else {
+            return
+        }
+
+        customShortcutItems.insert(
+            CustomShortcutItem(title: trimmed, shortcutName: trimmed),
+            at: 0
+        )
+    }
+
+    func removeCustomShortcut(_ item: CustomShortcutItem) {
+        customShortcutItems.removeAll { $0.id == item.id }
+    }
+
+    private func rebuildShortcuts() {
+        shortcuts = ShortcutProvider(model: self).shortcuts(customItems: customShortcutItems)
+    }
+
+    private func saveCustomShortcuts() {
+        guard let encoded = try? JSONEncoder().encode(customShortcutItems) else { return }
+        UserDefaults.standard.set(encoded, forKey: Self.shortcutsDefaultsKey)
+    }
+
+    private func saveNookActions() {
+        guard let encoded = try? JSONEncoder().encode(normalizedNookActions()) else { return }
+        UserDefaults.standard.set(encoded, forKey: Self.nookActionsDefaultsKey)
+    }
+
+    private func normalizedNookActions() -> [NookActionConfig] {
+        var normalized = Array(nookActions.prefix(2))
+        while normalized.count < 2 {
+            normalized.append(NookActionConfig.defaults[normalized.count])
+        }
+        return normalized
+    }
+
+    private func openApp(named name: String) {
+        let candidates = [
+            "/System/Applications/\(name).app",
+            "/System/Applications/Utilities/\(name).app",
+            "/Applications/\(name).app"
+        ].map(URL.init(fileURLWithPath:))
+
+        let url = candidates.first { FileManager.default.fileExists(atPath: $0.path) } ?? candidates[0]
+        NSWorkspace.shared.open(url)
     }
 }

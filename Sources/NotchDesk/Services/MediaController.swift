@@ -206,6 +206,17 @@ final class MediaController: ObservableObject {
         let output = processOutput(executable: "/bin/ps", arguments: ["-axo", "command"])
         let lines = output.components(separatedBy: .newlines)
 
+        if isYouTubeMusicRunningInWorkspace() {
+            return MediaSnapshot(
+                appName: "YouTube Music",
+                title: "YouTube Music",
+                artist: "Now Playing",
+                state: "playing",
+                outputVolume: volume,
+                lastUpdated: Date()
+            )
+        }
+
         if lines.contains(where: { line in
             line.localizedCaseInsensitiveContains("YouTube Music")
                 || line.localizedCaseInsensitiveContains("music.youtube.com")
@@ -278,6 +289,9 @@ final class MediaController: ObservableObject {
     }
 
     private static func isYouTubeMusicPWARunning() -> Bool {
+        if isYouTubeMusicRunningInWorkspace() {
+            return true
+        }
         if processListContains(all: ["YouTube Music.app", "app_mode_loader"]) {
             return true
         }
@@ -285,6 +299,20 @@ final class MediaController: ObservableObject {
             return true
         }
         return processListContains(all: ["Chrome Apps.localized", "YouTube Music"])
+    }
+
+    private static func isYouTubeMusicRunningInWorkspace() -> Bool {
+        NSWorkspace.shared.runningApplications.contains { application in
+            let name = application.localizedName ?? ""
+            let bundleIdentifier = application.bundleIdentifier ?? ""
+            let executablePath = application.executableURL?.path ?? ""
+            let bundlePath = application.bundleURL?.path ?? ""
+
+            return name.localizedCaseInsensitiveContains("YouTube Music")
+                || bundleIdentifier.localizedCaseInsensitiveContains("YouTubeMusic")
+                || executablePath.localizedCaseInsensitiveContains("YouTube Music.app")
+                || bundlePath.localizedCaseInsensitiveContains("YouTube Music.app")
+        }
     }
 
     private static func processListContains(all patterns: [String]) -> Bool {
