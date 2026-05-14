@@ -1,3 +1,5 @@
+import AppKit
+import QuickLookThumbnailing
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -152,9 +154,8 @@ struct FileChip: View {
 
     var body: some View {
         VStack(spacing: 5) {
-            Image(systemName: item.isDirectory ? "folder.fill" : "doc.fill")
-                .font(.system(size: 19, weight: .semibold))
-                .foregroundStyle(item.isDirectory ? .yellow : .white.opacity(0.78))
+            FileThumbnail(url: item.url, isDirectory: item.isDirectory)
+                .frame(width: 42, height: 34)
             Text(item.displayName)
                 .font(.system(size: 9, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.62))
@@ -166,5 +167,59 @@ struct FileChip: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(.white.opacity(0.07))
         )
+    }
+}
+
+private struct FileThumbnail: View {
+    let url: URL
+    let isDirectory: Bool
+    @State private var image: NSImage?
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(.black.opacity(0.20))
+
+            if let image {
+                Image(nsImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 42, height: 34)
+                    .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+            } else {
+                Image(systemName: isDirectory ? "folder.fill" : "doc.fill")
+                    .font(.system(size: 19, weight: .semibold))
+                    .foregroundStyle(isDirectory ? .yellow : .white.opacity(0.78))
+            }
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(.white.opacity(0.12), lineWidth: 0.8)
+        )
+        .task(id: url) {
+            await loadThumbnail()
+        }
+    }
+
+    private func loadThumbnail() async {
+        guard isDirectory == false else { return }
+
+        let request = QLThumbnailGenerator.Request(
+            fileAt: url,
+            size: CGSize(width: 84, height: 68),
+            scale: NSScreen.main?.backingScaleFactor ?? 2,
+            representationTypes: .thumbnail
+        )
+
+        do {
+            let representation = try await QLThumbnailGenerator.shared.generateBestRepresentation(for: request)
+            await MainActor.run {
+                image = representation.nsImage
+            }
+        } catch {
+            await MainActor.run {
+                image = NSWorkspace.shared.icon(forFile: url.path)
+            }
+        }
     }
 }

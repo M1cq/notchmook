@@ -6,7 +6,6 @@ final class NotchWindowController: NSWindowController {
     private let model: NookModel
     private var cancellables = Set<AnyCancellable>()
 
-    private let collapsedHoverSize = NSSize(width: 82, height: 18)
     private let expandedSize = NSSize(width: 590, height: 116)
     private var hoverTimer: Timer?
 
@@ -136,11 +135,12 @@ final class NotchWindowController: NSWindowController {
     private func collapsedHoverScreenRect() -> NSRect {
         let screen = targetScreen()
         let frame = screen.frame
+        let size = collapsedIdleSize()
         return NSRect(
-            x: frame.midX - (collapsedHoverSize.width / 2),
-            y: frame.maxY - collapsedHoverSize.height,
-            width: collapsedHoverSize.width,
-            height: collapsedHoverSize.height
+            x: frame.midX - (size.width / 2),
+            y: frame.maxY - size.height,
+            width: size.width,
+            height: size.height
         )
     }
 
@@ -155,6 +155,12 @@ final class NotchWindowController: NSWindowController {
             width: size.width,
             height: size.height
         )
+    }
+
+    private func collapsedIdleSize() -> NSSize {
+        model.mediaController.snapshot.hasMedia
+            ? NSSize(width: 252, height: 34)
+            : NSSize(width: 112, height: 24)
     }
 }
 
@@ -267,11 +273,12 @@ private final class ClearHostingView<Content: View>: NSHostingView<Content> {
     }
 
     private var collapsedHoverRect: NSRect {
-        NSRect(
-            x: bounds.midX - 41,
-            y: bounds.maxY - 18,
-            width: 82,
-            height: 18
+        let size = collapsedIdleSize
+        return NSRect(
+            x: bounds.midX - (size.width / 2),
+            y: bounds.maxY - size.height,
+            width: size.width,
+            height: size.height
         )
     }
 
@@ -281,12 +288,22 @@ private final class ClearHostingView<Content: View>: NSHostingView<Content> {
 
     private var collapsedInteractiveSize: NSSize {
         guard let model, model.isPeeking else {
-            return NSSize(width: 180, height: 24)
+            return collapsedIdleSize
         }
 
         return model.mediaController.snapshot.hasMedia
             ? NSSize(width: 322, height: 42)
             : NSSize(width: 166, height: 34)
+    }
+
+    private var collapsedIdleSize: NSSize {
+        guard let model else {
+            return NSSize(width: 112, height: 24)
+        }
+
+        return model.mediaController.snapshot.hasMedia
+            ? NSSize(width: 252, height: 34)
+            : NSSize(width: 112, height: 24)
     }
 
     override func viewDidMoveToWindow() {

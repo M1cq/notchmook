@@ -25,7 +25,7 @@ struct NotchRootView: View {
             CollapsedNookView()
                 .scaleEffect(expanded ? 0.82 : (peeking ? 1.0 : 0.98), anchor: .top)
                 .opacity(expanded ? 0.0 : 1.0)
-                .offset(y: expanded ? -4 : -2)
+                .offset(y: expanded ? -4 : -1)
                 .allowsHitTesting(!expanded)
         }
         .frame(width: panelSize.width, height: panelSize.height, alignment: .top)
