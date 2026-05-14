@@ -1,6 +1,42 @@
 import AppKit
 import SwiftUI
 
+struct NookDisplayMetrics: Equatable {
+    var expandedSize: CGSize
+    var contentHeight: CGFloat
+    var collapsedMediaSize: CGSize
+    var collapsedMediaPeekSize: CGSize
+    var collapsedIdleSize: CGSize
+    var collapsedIdlePeekSize: CGSize
+
+    static let thirteen = NookDisplayMetrics(
+        expandedSize: CGSize(width: 590, height: 116),
+        contentHeight: 64,
+        collapsedMediaSize: CGSize(width: 272, height: 34),
+        collapsedMediaPeekSize: CGSize(width: 300, height: 40),
+        collapsedIdleSize: CGSize(width: 112, height: 24),
+        collapsedIdlePeekSize: CGSize(width: 158, height: 32)
+    )
+
+    static let fourteen = NookDisplayMetrics(
+        expandedSize: CGSize(width: 640, height: 124),
+        contentHeight: 70,
+        collapsedMediaSize: CGSize(width: 292, height: 36),
+        collapsedMediaPeekSize: CGSize(width: 326, height: 42),
+        collapsedIdleSize: CGSize(width: 122, height: 26),
+        collapsedIdlePeekSize: CGSize(width: 172, height: 34)
+    )
+
+    static let fifteen = NookDisplayMetrics(
+        expandedSize: CGSize(width: 690, height: 128),
+        contentHeight: 74,
+        collapsedMediaSize: CGSize(width: 318, height: 38),
+        collapsedMediaPeekSize: CGSize(width: 356, height: 44),
+        collapsedIdleSize: CGSize(width: 132, height: 28),
+        collapsedIdlePeekSize: CGSize(width: 188, height: 36)
+    )
+}
+
 enum NookTheme: String, CaseIterable, Identifiable {
     case black
     case dusk
@@ -283,6 +319,7 @@ struct CustomShortcutItem: Identifiable, Codable, Equatable {
         case "green": .green
         case "cyan": .cyan
         case "red": .red
+        case "yellow": .yellow
         case "gray": .gray
         default: .purple
         }
@@ -353,6 +390,11 @@ struct NookActionConfig: Identifiable, Codable, Equatable {
         NookActionConfig(title: "Open Music", subtitle: "Open player", symbol: "music.note", tintName: "pink", kind: "builtIn", value: "openMusic"),
         NookActionConfig(title: "Calendar", subtitle: "Open app", symbol: "calendar", tintName: "orange", kind: "builtIn", value: "openCalendar"),
         NookActionConfig(title: "Mirror", subtitle: "Camera", symbol: "camera.viewfinder", tintName: "blue", kind: "builtIn", value: "mirror"),
+        NookActionConfig(title: "Finder", subtitle: "Home folder", symbol: "folder", tintName: "blue", kind: "builtIn", value: "openFinder"),
+        NookActionConfig(title: "Downloads", subtitle: "Open folder", symbol: "arrow.down.circle", tintName: "green", kind: "builtIn", value: "openDownloads"),
+        NookActionConfig(title: "Shortcuts", subtitle: "Apple Shortcuts", symbol: "sparkles.rectangle.stack", tintName: "purple", kind: "builtIn", value: "openShortcuts"),
+        NookActionConfig(title: "Screenshot", subtitle: "Capture tool", symbol: "camera.viewfinder", tintName: "yellow", kind: "builtIn", value: "openScreenshot"),
+        NookActionConfig(title: "Settings", subtitle: "System app", symbol: "gearshape", tintName: "gray", kind: "builtIn", value: "openSystemSettings"),
         NookActionConfig(title: "Clear Tray", subtitle: "Empty files", symbol: "trash", tintName: "red", kind: "builtIn", value: "clearTray")
     ]
 }

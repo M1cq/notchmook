@@ -6,7 +6,6 @@ final class NotchWindowController: NSWindowController {
     private let model: NookModel
     private var cancellables = Set<AnyCancellable>()
 
-    private let expandedSize = NSSize(width: 590, height: 116)
     private var hoverTimer: Timer?
 
     init(model: NookModel) {
@@ -21,7 +20,7 @@ final class NotchWindowController: NSWindowController {
         hostingView.layer?.isOpaque = false
 
         let panel = NotchPanel(
-            contentRect: NSRect(origin: .zero, size: expandedSize),
+            contentRect: NSRect(origin: .zero, size: model.displayMetrics.expandedSize),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -82,8 +81,9 @@ final class NotchWindowController: NSWindowController {
     func reposition(animated: Bool) {
         guard let window else { return }
 
-        let size = expandedSize
         let screen = targetScreen()
+        model.displayMetrics = displayMetrics(for: screen)
+        let size = model.displayMetrics.expandedSize
         let frame = screen.frame
         let origin = NSPoint(
             x: frame.midX - (size.width / 2),
@@ -104,6 +104,26 @@ final class NotchWindowController: NSWindowController {
 
     private func targetScreen() -> NSScreen {
         NSScreen.main ?? NSScreen.screens[0]
+    }
+
+    private func displayMetrics(for screen: NSScreen) -> NookDisplayMetrics {
+        let pointWidth = screen.frame.width
+        let physicalWidth = physicalWidthInMillimeters(for: screen)
+
+        if physicalWidth >= 325 || pointWidth >= 1680 {
+            return .fifteen
+        }
+        if physicalWidth >= 295 || pointWidth >= 1500 {
+            return .fourteen
+        }
+        return .thirteen
+    }
+
+    private func physicalWidthInMillimeters(for screen: NSScreen) -> CGFloat {
+        guard let displayID = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID else {
+            return 0
+        }
+        return CGDisplayScreenSize(displayID).width
     }
 
     private func startCollapsedHoverMonitor() {
@@ -147,8 +167,10 @@ final class NotchWindowController: NSWindowController {
     private func peekScreenRect() -> NSRect {
         let screen = targetScreen()
         let frame = screen.frame
-        let hasMedia = model.mediaController.snapshot.hasMedia
-        let size = hasMedia ? NSSize(width: 322, height: 42) : NSSize(width: 166, height: 34)
+        let metrics = model.displayMetrics
+        let size = model.mediaController.snapshot.hasMedia
+            ? metrics.collapsedMediaPeekSize
+            : metrics.collapsedIdlePeekSize
         return NSRect(
             x: frame.midX - (size.width / 2),
             y: frame.maxY - size.height,
@@ -159,8 +181,8 @@ final class NotchWindowController: NSWindowController {
 
     private func collapsedIdleSize() -> NSSize {
         model.mediaController.snapshot.hasMedia
-            ? NSSize(width: 272, height: 34)
-            : NSSize(width: 112, height: 24)
+            ? model.displayMetrics.collapsedMediaSize
+            : model.displayMetrics.collapsedIdleSize
     }
 }
 
@@ -292,8 +314,8 @@ private final class ClearHostingView<Content: View>: NSHostingView<Content> {
         }
 
         return model.mediaController.snapshot.hasMedia
-            ? NSSize(width: 322, height: 42)
-            : NSSize(width: 166, height: 34)
+            ? model.displayMetrics.collapsedMediaPeekSize
+            : model.displayMetrics.collapsedIdlePeekSize
     }
 
     private var collapsedIdleSize: NSSize {
@@ -302,8 +324,8 @@ private final class ClearHostingView<Content: View>: NSHostingView<Content> {
         }
 
         return model.mediaController.snapshot.hasMedia
-            ? NSSize(width: 272, height: 34)
-            : NSSize(width: 112, height: 24)
+            ? model.displayMetrics.collapsedMediaSize
+            : model.displayMetrics.collapsedIdleSize
     }
 
     override func viewDidMoveToWindow() {

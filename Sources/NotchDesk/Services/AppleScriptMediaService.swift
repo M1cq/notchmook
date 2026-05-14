@@ -69,11 +69,12 @@ enum AppleScriptMediaService {
 
     private static func browserSnapshot(appName: String, displayName: String, bundleIdentifier: String, volume: Int) -> MediaSnapshot? {
         guard isRunning(bundleIdentifier: bundleIdentifier, appName: appName) else { return nil }
+        let jsCode = appleScriptString(browserMediaJavaScript(displayName: displayName))
 
         let script = """
         with timeout of 1 seconds
             tell application "\(appName)"
-                set jsCode to "(() => { const metadata = navigator.mediaSession && navigator.mediaSession.metadata; const mediaItems = Array.from(document.querySelectorAll('video,audio')); const media = mediaItems.find(item => !item.paused && !item.ended) || mediaItems[0]; if (!metadata && !media) return ''; const host = location.hostname.replace(/^www\\\\./, ''); let source = 'Browser Media'; if (host.includes('music.youtube.com')) source = 'YouTube Music'; else if (host.includes('youtube.com')) source = 'YouTube'; else if (host.includes('netflix.com')) source = 'Netflix'; const art = metadata && metadata.artwork && metadata.artwork.length ? metadata.artwork[metadata.artwork.length - 1].src : ''; const artwork = art ? new URL(art, location.href).href : ''; const title = (metadata && metadata.title) || document.title || source; const artist = (metadata && (metadata.artist || metadata.album)) || host || '\(displayName)'; const state = media ? (media.paused ? 'paused' : 'playing') : 'playing'; return [source, title, artist, state, artwork].join('|||'); })();"
+                set jsCode to \(jsCode)
                 repeat with browserWindow in windows
                     repeat with browserTab in tabs of browserWindow
                         set tabURL to URL of browserTab
@@ -94,7 +95,7 @@ enum AppleScriptMediaService {
                                 set jsResult to execute browserTab javascript jsCode
                                 if jsResult is not "" then return jsResult
                             end try
-                            return "Netflix||| " & (title of browserTab) & "||| \(displayName)||| playing||| "
+                            return "Netflix||| Netflix||| \(displayName)||| playing||| "
                         else
                             try
                                 set jsResult to execute browserTab javascript jsCode
@@ -108,6 +109,75 @@ enum AppleScriptMediaService {
         """
 
         return snapshot(from: AppleScriptRunner.run(script), fallbackAppName: displayName, volume: volume)
+    }
+
+    private static func browserMediaJavaScript(displayName: String) -> String {
+        """
+        (() => {
+          const metadata = navigator.mediaSession && navigator.mediaSession.metadata;
+          const mediaItems = Array.from(document.querySelectorAll('video,audio'));
+          const media = mediaItems.find(item => !item.paused && !item.ended) || mediaItems[0];
+          if (!metadata && !media) return '';
+          const host = location.hostname.replace(/^www\\./, '');
+          let source = 'Browser Media';
+          if (host.includes('music.youtube.com')) source = 'YouTube Music';
+          else if (host.includes('youtube.com')) source = 'YouTube';
+          else if (host.includes('netflix.com')) source = 'Netflix';
+          const text = (value) => (value || '').replace(/\\s+/g, ' ').trim();
+          const firstText = (selectors) => {
+            for (const selector of selectors) {
+              const item = document.querySelector(selector);
+              const value = text(item && (item.getAttribute('aria-label') || item.getAttribute('alt') || item.textContent || item.content));
+              if (value) return value;
+            }
+            return '';
+          };
+          const firstAttr = (selectors, attr) => {
+            for (const selector of selectors) {
+              const item = document.querySelector(selector);
+              const value = text(item && item.getAttribute(attr));
+              if (value) return value;
+            }
+            return '';
+          };
+          const netflixTitle = firstText([
+            '[data-uia="video-title"]',
+            '[data-uia*="title"]',
+            '.video-title',
+            '.title-title',
+            '.ellipsize-text',
+            'meta[property="og:title"]',
+            'meta[name="title"]'
+          ]);
+          const rawTitle = text((metadata && metadata.title) || netflixTitle || document.title || source);
+          const cleanedTitle = text(rawTitle.replace(/[-|]?\\s*Netflix\\s*$/i, '').replace(/^Netflix\\s*[-|]?\\s*/i, '')) || source;
+          const artist = text((metadata && (metadata.artist || metadata.album)) || (source === 'Netflix' ? '\(displayName)' : host) || '\(displayName)');
+          const mediaArtwork = metadata && metadata.artwork && metadata.artwork.length ? metadata.artwork[metadata.artwork.length - 1].src : '';
+          const pageArtwork = firstAttr([
+            'meta[property="og:image"]',
+            'meta[name="twitter:image"]',
+            'img[src*="occ-"]',
+            'img[src*="nflx"]',
+            'img[alt][src]'
+          ], 'content') || firstAttr([
+            'img[src*="occ-"]',
+            'img[src*="nflx"]',
+            'img[alt][src]'
+          ], 'src');
+          const art = mediaArtwork || pageArtwork;
+          const artwork = art ? new URL(art, location.href).href : '';
+          const state = media ? (media.paused ? 'paused' : 'playing') : 'playing';
+          return [source, cleanedTitle, artist, state, artwork].join('|||');
+        })();
+        """
+    }
+
+    private static func appleScriptString(_ rawValue: String) -> String {
+        let escaped = rawValue
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+            .replacingOccurrences(of: "\n", with: " ")
+        return "\"\(escaped)\""
     }
 
     private static func snapshot(from rawValue: String?, fallbackAppName: String, volume: Int) -> MediaSnapshot? {
@@ -125,6 +195,9 @@ enum AppleScriptMediaService {
         let state = normalizedState(parts[safe: 3] ?? "playing")
         let artworkURL = parsedArtworkURL(parts[safe: 4])
         let cleaned = cleanedBrowserTitle(rawTitle, appName: appName)
+        if isUselessBrowserTitle(cleaned, appName: appName, rawArtist: rawArtist), artworkURL == nil {
+            return nil
+        }
         let split = splitTitle(cleaned, fallbackArtist: rawArtist)
 
         return MediaSnapshot(
@@ -158,6 +231,12 @@ enum AppleScriptMediaService {
             .replacingOccurrences(of: "YouTube Music", with: appName == "YouTube Music" ? "" : "YouTube Music")
             .replacingOccurrences(of: "Netflix", with: appName == "Netflix" ? "" : "Netflix")
             .trimmingCharacters(in: CharacterSet(charactersIn: " -\n\t"))
+    }
+
+    private static func isUselessBrowserTitle(_ title: String, appName: String, rawArtist: String) -> Bool {
+        guard appName == "Netflix" else { return false }
+        let genericTitles = ["Dia", "Chrome", "Google Chrome", "Arc", "Edge", "Microsoft Edge", "Brave", "Brave Browser"]
+        return genericTitles.contains { title.caseInsensitiveCompare($0) == .orderedSame }
     }
 
     private static func splitTitle(_ rawTitle: String, fallbackArtist: String) -> (title: String, artist: String) {

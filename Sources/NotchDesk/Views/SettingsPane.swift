@@ -649,6 +649,13 @@ private struct NookActionsSettings: View {
                     Label("Reload Shortcuts", systemImage: "arrow.clockwise")
                 }
                 .buttonStyle(SettingsPillButtonStyle())
+
+                Button {
+                    model.openShortcutsApp()
+                } label: {
+                    Label("Open Shortcuts", systemImage: "sparkles")
+                }
+                .buttonStyle(SettingsPillButtonStyle())
             }
         }
     }
@@ -747,19 +754,29 @@ private struct NookActionPicker: View {
                 }
             }
 
-            if model.customShortcutItems.isEmpty == false || model.availableShortcutNames.isEmpty == false {
-                Section("Shortcuts") {
-                    ForEach(model.customShortcutItems) { item in
-                        Button(item.title) {
-                            model.setNookAction(model.customShortcutNookAction(named: item.shortcutName), at: index)
-                        }
+            Section("Apple Shortcuts") {
+                Button("Reload Apple Shortcuts") {
+                    model.refreshAvailableShortcutNames()
+                }
+                Button("Open Shortcuts App") {
+                    model.openShortcutsApp()
+                }
+
+                if model.customShortcutItems.isEmpty && model.availableShortcutNames.isEmpty {
+                    Button("No shortcuts found") {}
+                        .disabled(true)
+                }
+
+                ForEach(model.customShortcutItems) { item in
+                    Button(item.title) {
+                        model.setNookAction(model.customShortcutNookAction(named: item.shortcutName), at: index)
                     }
-                    ForEach(model.availableShortcutNames.filter({ name in
-                        model.customShortcutItems.contains(where: { $0.shortcutName == name }) == false
-                    }), id: \.self) { name in
-                        Button(name) {
-                            model.setNookAction(model.customShortcutNookAction(named: name), at: index)
-                        }
+                }
+                ForEach(model.availableShortcutNames.filter({ name in
+                    model.customShortcutItems.contains(where: { $0.shortcutName == name }) == false
+                }), id: \.self) { name in
+                    Button(name) {
+                        model.setNookAction(model.customShortcutNookAction(named: name), at: index)
                     }
                 }
             }

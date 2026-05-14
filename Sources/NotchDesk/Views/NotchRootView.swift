@@ -4,11 +4,11 @@ import UniformTypeIdentifiers
 
 struct NotchRootView: View {
     @EnvironmentObject private var model: NookModel
-    private let panelSize = CGSize(width: 590, height: 116)
 
     var body: some View {
         let expanded = model.isExpanded
         let peeking = model.isPeeking && expanded == false
+        let panelSize = model.displayMetrics.expandedSize
 
         ZStack(alignment: .top) {
             ExpandedNookView()
@@ -134,16 +134,16 @@ struct CollapsedNookView: View {
 
     private func width(hasMedia: Bool, peeking: Bool) -> CGFloat {
         if hasMedia {
-            return peeking ? 300 : 272
+            return peeking ? model.displayMetrics.collapsedMediaPeekSize.width : model.displayMetrics.collapsedMediaSize.width
         }
-        return peeking ? 158 : 112
+        return peeking ? model.displayMetrics.collapsedIdlePeekSize.width : model.displayMetrics.collapsedIdleSize.width
     }
 
     private func height(hasMedia: Bool, peeking: Bool) -> CGFloat {
         if hasMedia {
-            return peeking ? 40 : 34
+            return peeking ? model.displayMetrics.collapsedMediaPeekSize.height : model.displayMetrics.collapsedMediaSize.height
         }
-        return peeking ? 32 : 24
+        return peeking ? model.displayMetrics.collapsedIdlePeekSize.height : model.displayMetrics.collapsedIdleSize.height
     }
 }
 
@@ -192,8 +192,8 @@ private struct MediaSourceIcon: View {
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             )
-                        )
-                    Image(systemName: symbol)
+                    )
+                    Image(systemName: mediaSourceSymbol(for: snapshot.appName))
                         .font(.system(size: 9, weight: .black))
                         .foregroundStyle(.white)
                 }
@@ -206,33 +206,40 @@ private struct MediaSourceIcon: View {
         )
     }
 
-    private var symbol: String {
-        switch snapshot.appName {
-        case "Spotify": "music.note"
-        case "YouTube Music": "play.fill"
-        case "YouTube": "play.rectangle.fill"
-        case "Netflix": "n.square.fill"
-        case "Dia": "play.square.stack.fill"
-        case "Now Playing": "play.circle.fill"
-        default: "music.note"
-        }
-    }
-
     private var iconColors: [Color] {
-        switch snapshot.appName {
-        case "Spotify":
-            [Color(red: 0.12, green: 0.72, blue: 0.32), Color(red: 0.04, green: 0.26, blue: 0.12)]
-        case "YouTube Music", "YouTube":
-            [Color(red: 0.96, green: 0.10, blue: 0.12), Color(red: 0.36, green: 0.04, blue: 0.08)]
-        case "Netflix":
-            [Color(red: 0.90, green: 0.02, blue: 0.04), Color(red: 0.14, green: 0.00, blue: 0.01)]
-        case "Dia":
-            [Color(red: 0.24, green: 0.24, blue: 0.28), Color(red: 0.04, green: 0.04, blue: 0.06)]
-        case "Now Playing":
-            [Color(red: 0.18, green: 0.42, blue: 0.94), Color(red: 0.08, green: 0.12, blue: 0.34)]
-        default:
-            [Color(red: 0.56, green: 0.28, blue: 1.0), Color(red: 0.14, green: 0.08, blue: 0.28)]
-        }
+        mediaSourceColors(for: snapshot.appName)
+    }
+}
+
+private func mediaSourceSymbol(for appName: String) -> String {
+    switch appName {
+    case "Spotify": "music.note"
+    case "YouTube Music": "play.fill"
+    case "YouTube": "play.rectangle.fill"
+    case "Netflix": "n.square.fill"
+    case "Dia": "play.square.stack.fill"
+    case "Music": "music.note"
+    case "Now Playing": "play.circle.fill"
+    default: "music.note"
+    }
+}
+
+private func mediaSourceColors(for appName: String) -> [Color] {
+    switch appName {
+    case "Spotify":
+        [Color(red: 0.12, green: 0.72, blue: 0.32), Color(red: 0.04, green: 0.26, blue: 0.12)]
+    case "YouTube Music", "YouTube":
+        [Color(red: 0.96, green: 0.10, blue: 0.12), Color(red: 0.36, green: 0.04, blue: 0.08)]
+    case "Netflix":
+        [Color(red: 0.90, green: 0.02, blue: 0.04), Color(red: 0.14, green: 0.00, blue: 0.01)]
+    case "Dia":
+        [Color(red: 0.24, green: 0.24, blue: 0.28), Color(red: 0.04, green: 0.04, blue: 0.06)]
+    case "Music":
+        [Color(red: 1.00, green: 0.27, blue: 0.40), Color(red: 0.88, green: 0.12, blue: 0.34)]
+    case "Now Playing":
+        [Color(red: 0.18, green: 0.42, blue: 0.94), Color(red: 0.08, green: 0.12, blue: 0.34)]
+    default:
+        [Color(red: 0.56, green: 0.28, blue: 1.0), Color(red: 0.14, green: 0.08, blue: 0.28)]
     }
 }
 
@@ -240,18 +247,19 @@ struct ExpandedNookView: View {
     @EnvironmentObject private var model: NookModel
 
     var body: some View {
+        let metrics = model.displayMetrics
         ZStack(alignment: .top) {
             StripBackground()
             VStack(spacing: 6) {
                 HeaderTabs()
                 content
-                    .frame(height: 64)
+                    .frame(height: metrics.contentHeight)
             }
             .padding(.horizontal, 18)
             .padding(.top, 8)
             .padding(.bottom, 10)
         }
-        .frame(width: 590, height: 116)
+        .frame(width: metrics.expandedSize.width, height: metrics.expandedSize.height)
         .clipShape(
             UnevenRoundedRectangle(
                 topLeadingRadius: 0,
@@ -525,7 +533,7 @@ private struct NookActionsWidget: View {
         GeometryReader { proxy in
             let scale = min(1, max(0, (proxy.size.width - 118) / 110))
             let spacing = 8 + (2 * scale)
-            let buttonHeight = min(31, max(28, (proxy.size.height - spacing) / 2))
+            let buttonHeight = min(31, max(27, (proxy.size.height - spacing - 4) / 2))
             let titleSize = 10 + (2 * scale)
             let iconSize = 10 + (2 * scale)
 
@@ -543,6 +551,7 @@ private struct NookActionsWidget: View {
                     }
                 }
             }
+            .padding(.vertical, 2)
             .frame(width: proxy.size.width, height: proxy.size.height, alignment: .center)
         }
     }
@@ -822,6 +831,8 @@ private struct HeroMediaBlock: View {
                     Button { controller.previousTrack() } label: { Image(systemName: "backward.fill") }
                     Button { controller.togglePlayPause() } label: { Image(systemName: snapshot.isPlaying ? "pause.fill" : "play.fill") }
                     Button { controller.nextTrack() } label: { Image(systemName: "forward.fill") }
+                    Spacer(minLength: 4)
+                    MediaSourceBadge(snapshot: snapshot, showTitle: true)
                 }
                 .font(.system(size: 9, weight: .black))
                 .foregroundStyle(.white.opacity(0.90))
@@ -867,6 +878,8 @@ private struct CompactMediaBlock: View {
                         Button { controller.previousTrack() } label: { Image(systemName: "backward.fill") }
                         Button { controller.togglePlayPause() } label: { Image(systemName: controller.snapshot.isPlaying ? "pause.fill" : "play.fill") }
                         Button { controller.nextTrack() } label: { Image(systemName: "forward.fill") }
+                        Spacer(minLength: 3)
+                        MediaSourceBadge(snapshot: controller.snapshot, showTitle: scale > 0.55)
                     }
                     .font(.system(size: controlSize, weight: .black))
                     .foregroundStyle(.white.opacity(0.88))
@@ -973,6 +986,72 @@ private struct AlbumTile: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
+        .overlay(alignment: .bottomTrailing) {
+            if snapshot.hasMedia {
+                MediaSourceIconBadge(snapshot: snapshot)
+                    .offset(x: 4, y: 4)
+            }
+        }
+    }
+}
+
+private struct MediaSourceBadge: View {
+    let snapshot: MediaSnapshot
+    let showTitle: Bool
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: mediaSourceSymbol(for: snapshot.appName))
+                .font(.system(size: 7.5, weight: .black))
+            if showTitle {
+                Text(displayName)
+                    .font(.system(size: 7.5, weight: .black))
+                    .lineLimit(1)
+            }
+        }
+        .foregroundStyle(.white.opacity(0.90))
+        .padding(.horizontal, showTitle ? 6 : 5)
+        .frame(height: 16)
+        .background(
+            Capsule()
+                .fill(.white.opacity(0.10))
+                .overlay(Capsule().strokeBorder(.white.opacity(0.14), lineWidth: 0.8))
+        )
+        .fixedSize(horizontal: true, vertical: false)
+        .opacity(snapshot.hasMedia ? 1 : 0)
+    }
+
+    private var displayName: String {
+        if snapshot.appName.hasPrefix("com.") {
+            return snapshot.appName.components(separatedBy: ".").last?.capitalized ?? "Media"
+        }
+        return snapshot.appName
+    }
+}
+
+private struct MediaSourceIconBadge: View {
+    let snapshot: MediaSnapshot
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: mediaSourceColors(for: snapshot.appName),
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .strokeBorder(.white.opacity(0.26), lineWidth: 0.8)
+                )
+            Image(systemName: mediaSourceSymbol(for: snapshot.appName))
+                .font(.system(size: 11, weight: .black))
+                .foregroundStyle(.white)
+        }
+        .frame(width: 22, height: 22)
+        .shadow(color: .black.opacity(0.26), radius: 4, y: 2)
     }
 }
 private struct NookActionButton: View {
@@ -980,24 +1059,50 @@ private struct NookActionButton: View {
     let title: String
     let icon: String
     var tint: Color?
+    var height: CGFloat = 28
+    var titleSize: CGFloat = 10
+    var iconSize: CGFloat = 10
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: 6) {
             Image(systemName: icon)
-                    .font(.system(size: 10, weight: .bold))
+                    .font(.system(size: iconSize, weight: .bold))
                     .foregroundStyle(tint ?? model.theme.accent)
                 Text(title)
-                    .font(.system(size: 10, weight: .bold))
+                    .font(.system(size: titleSize, weight: .bold))
                     .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
                 Spacer()
             }
-            .padding(.horizontal, 12)
-            .frame(height: 28)
-            .background(Capsule().fill(.black.opacity(0.42)))
+            .padding(.horizontal, 12 + max(0, titleSize - 10))
+            .frame(maxWidth: .infinity)
+            .frame(height: height)
+            .background(actionButtonBackground)
+            .contentShape(Capsule())
         }
         .buttonStyle(.plain)
+    }
+
+    private var actionButtonBackground: some View {
+        Capsule()
+            .fill(
+                LinearGradient(
+                    colors: [
+                        Color.white.opacity(model.theme == .black ? 0.13 : 0.09),
+                        Color.black.opacity(model.theme == .black ? 0.34 : 0.30)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .overlay(
+                Capsule()
+                    .strokeBorder(.white.opacity(model.theme == .black ? 0.20 : 0.12), lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.18), radius: 4, y: 2)
     }
 }
 

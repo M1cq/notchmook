@@ -73,11 +73,11 @@ final class MediaController: ObservableObject {
     }
 
     private static func resolvedSnapshot(volume: Int) -> MediaSnapshot {
-        if let appleScript = AppleScriptMediaService.currentSnapshot(volume: volume) {
-            return appleScript
-        }
         if let mediaRemote = MediaRemoteService.currentSnapshot(volume: volume) {
             return mediaRemote
+        }
+        if let appleScript = AppleScriptMediaService.currentSnapshot(volume: volume) {
+            return appleScript
         }
         if let accessibility = AccessibilityMediaService.currentSnapshot(volume: volume) {
             return accessibility

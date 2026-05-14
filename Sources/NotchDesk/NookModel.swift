@@ -37,6 +37,7 @@ final class NookModel: ObservableObject {
             saveNookWidgetConfigs()
         }
     }
+    @Published var displayMetrics = NookDisplayMetrics.thirteen
 
     let mediaController = MediaController()
     let calendarProvider = CalendarProvider()
@@ -144,6 +145,16 @@ final class NookModel: ObservableObject {
             openApp(named: "Calendar")
         case ("builtIn", "mirror"):
             expand(tab: .mirror)
+        case ("builtIn", "openFinder"):
+            NSWorkspace.shared.open(URL(fileURLWithPath: NSHomeDirectory()))
+        case ("builtIn", "openDownloads"):
+            NSWorkspace.shared.open(URL(fileURLWithPath: "\(NSHomeDirectory())/Downloads", isDirectory: true))
+        case ("builtIn", "openShortcuts"):
+            openApp(named: "Shortcuts")
+        case ("builtIn", "openScreenshot"):
+            openApp(named: "Screenshot")
+        case ("builtIn", "openSystemSettings"):
+            openApp(named: "System Settings")
         case ("builtIn", "clearTray"):
             clearTray()
         case ("shortcut", let name):
@@ -178,6 +189,10 @@ final class NookModel: ObservableObject {
                 self.availableShortcutNames = names
             }
         }
+    }
+
+    func openShortcutsApp() {
+        openApp(named: "Shortcuts")
     }
 
     func addShortcut(named name: String) {
