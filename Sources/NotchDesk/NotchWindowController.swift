@@ -17,11 +17,7 @@ final class NotchWindowController: NSWindowController {
         let rootView = NotchRootView()
             .environmentObject(model)
 
-        let hostingView = ClearHostingView(
-            rootView: rootView,
-            model: model,
-            collapsedHitSize: collapsedSize
-        )
+        let hostingView = ClearHostingView(rootView: rootView, model: model)
         hostingView.wantsLayer = true
         hostingView.layer?.backgroundColor = NSColor.clear.cgColor
         hostingView.layer?.isOpaque = false
@@ -73,10 +69,10 @@ final class NotchWindowController: NSWindowController {
     }
 
     private func bindModel() {
-        model.$isExpanded
+        Publishers.CombineLatest(model.$isExpanded, model.$isPeeking)
             .receive(on: RunLoop.main)
-            .sink { [weak self] isExpanded in
-                self?.window?.ignoresMouseEvents = !isExpanded
+            .sink { [weak self] isExpanded, isPeeking in
+                self?.window?.ignoresMouseEvents = !(isExpanded || isPeeking)
             }
             .store(in: &cancellables)
     }
@@ -115,20 +111,27 @@ final class NotchWindowController: NSWindowController {
     private func startCollapsedHoverMonitor() {
         hoverTimer?.invalidate()
         let timer = Timer(timeInterval: 0.05, repeats: true) { [weak self] _ in
-            self?.expandIfPointerIsAtNotch()
+            self?.updatePeekStateForPointer()
         }
         hoverTimer = timer
         RunLoop.main.add(timer, forMode: .common)
     }
 
-    private func expandIfPointerIsAtNotch() {
+    private func updatePeekStateForPointer() {
         guard model.autoExpandOnHover, model.isExpanded == false else { return }
 
         let point = NSEvent.mouseLocation
+        if model.isPeeking {
+            if peekScreenRect().contains(point) == false {
+                model.collapsePeek()
+            }
+            return
+        }
+
         guard collapsedHoverScreenRect().contains(point) else { return }
 
         window?.orderFrontRegardless()
-        model.expand()
+        model.peek()
     }
 
     private func collapsedHoverScreenRect() -> NSRect {
@@ -141,6 +144,19 @@ final class NotchWindowController: NSWindowController {
             height: collapsedHoverSize.height
         )
     }
+
+    private func peekScreenRect() -> NSRect {
+        let screen = targetScreen()
+        let frame = screen.frame
+        let hasMedia = model.mediaController.snapshot.hasMedia
+        let size = hasMedia ? NSSize(width: 322, height: 42) : NSSize(width: 166, height: 34)
+        return NSRect(
+            x: frame.midX - (size.width / 2),
+            y: frame.maxY - size.height,
+            width: size.width,
+            height: size.height
+        )
+    }
 }
 
 private final class NotchPanel: NSPanel {
@@ -150,12 +166,10 @@ private final class NotchPanel: NSPanel {
 
 private final class ClearHostingView<Content: View>: NSHostingView<Content> {
     private weak var model: NookModel?
-    private let collapsedHitSize: NSSize
     private var trackingArea: NSTrackingArea?
 
-    init(rootView: Content, model: NookModel, collapsedHitSize: NSSize) {
+    init(rootView: Content, model: NookModel) {
         self.model = model
-        self.collapsedHitSize = collapsedHitSize
         super.init(rootView: rootView)
         registerForDraggedTypes([.fileURL])
     }
@@ -177,11 +191,12 @@ private final class ClearHostingView<Content: View>: NSHostingView<Content> {
             return super.hitTest(point)
         }
 
+        let hitSize = collapsedInteractiveSize
         let collapsedRect = NSRect(
-            x: bounds.midX - (collapsedHitSize.width / 2),
-            y: bounds.maxY - collapsedHitSize.height,
-            width: collapsedHitSize.width,
-            height: collapsedHitSize.height
+            x: bounds.midX - (hitSize.width / 2),
+            y: bounds.maxY - hitSize.height,
+            width: hitSize.width,
+            height: hitSize.height
         )
 
         guard collapsedRect.contains(point) else {
@@ -212,7 +227,7 @@ private final class ClearHostingView<Content: View>: NSHostingView<Content> {
 
         let point = convert(event.locationInWindow, from: nil)
         if shouldExpandFromCollapsed(at: point) {
-            model.expand()
+            model.peek()
         }
     }
 
@@ -222,13 +237,17 @@ private final class ClearHostingView<Content: View>: NSHostingView<Content> {
 
         let point = convert(event.locationInWindow, from: nil)
         if shouldExpandFromCollapsed(at: point) {
-            model.expand()
+            model.peek()
         }
     }
 
     override func mouseExited(with event: NSEvent) {
         super.mouseExited(with: event)
-        model?.scheduleCollapse()
+        if model?.isExpanded == true {
+            model?.scheduleCollapse()
+        } else {
+            model?.collapsePeek()
+        }
     }
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
@@ -273,6 +292,16 @@ private final class ClearHostingView<Content: View>: NSHostingView<Content> {
 
     private func shouldExpandFromCollapsed(at point: NSPoint) -> Bool {
         collapsedHoverRect.contains(point)
+    }
+
+    private var collapsedInteractiveSize: NSSize {
+        guard let model, model.isPeeking else {
+            return NSSize(width: 180, height: 24)
+        }
+
+        return model.mediaController.snapshot.hasMedia
+            ? NSSize(width: 322, height: 42)
+            : NSSize(width: 166, height: 34)
     }
 
     override func viewDidMoveToWindow() {

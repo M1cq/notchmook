@@ -4,6 +4,7 @@ import Foundation
 
 final class NookModel: ObservableObject {
     @Published var isExpanded = false
+    @Published var isPeeking = false
     @Published var isPinned = false
     @Published var selectedTab: NookTab = .dashboard
     @Published var trayItems: [TrayItem] = []
@@ -72,7 +73,19 @@ final class NookModel: ObservableObject {
         if let tab {
             selectedTab = tab
         }
+        isPeeking = false
         isExpanded = true
+    }
+
+    func peek() {
+        collapseTask?.cancel()
+        guard isExpanded == false else { return }
+        isPeeking = true
+    }
+
+    func collapsePeek() {
+        guard isExpanded == false else { return }
+        isPeeking = false
     }
 
     func scheduleCollapse() {
@@ -81,6 +94,7 @@ final class NookModel: ObservableObject {
 
         let task = DispatchWorkItem { [weak self] in
             self?.isExpanded = false
+            self?.isPeeking = false
         }
         collapseTask = task
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.28, execute: task)
@@ -95,6 +109,7 @@ final class NookModel: ObservableObject {
         guard newItems.isEmpty == false else { return }
         trayItems.append(contentsOf: newItems)
         selectedTab = .tray
+        isPeeking = false
         isExpanded = true
     }
 
