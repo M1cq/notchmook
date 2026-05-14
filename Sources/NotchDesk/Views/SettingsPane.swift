@@ -330,16 +330,25 @@ private struct AboutSettings: View {
 
 private struct NookPreviewCard: View {
     @EnvironmentObject private var model: NookModel
+    @State private var draggedKind: NookWidgetKind?
 
     var body: some View {
         VStack(spacing: 12) {
-            Picker("", selection: $model.nookLayout) {
-                ForEach(NookLayout.allCases) { layout in
-                    Text(layout.title).tag(layout)
+            HStack {
+                Picker("", selection: $model.nookLayout) {
+                    ForEach(NookLayout.allCases) { layout in
+                        Text(layout.title).tag(layout)
+                    }
                 }
+                .pickerStyle(.segmented)
+                .frame(width: 260)
+
+                Spacer()
+
+                Text("Drag widgets to reorder")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.46))
             }
-            .pickerStyle(.segmented)
-            .frame(width: 220)
 
             ZStack {
                 RoundedRectangle(cornerRadius: 32, style: .continuous)
@@ -350,12 +359,46 @@ private struct NookPreviewCard: View {
                     )
                     .shadow(color: model.theme.accent.opacity(0.32), radius: 12, y: 5)
 
-                HStack(spacing: 8) {
-                    PreviewWidget(icon: "music.note", title: "Media Player")
-                    PreviewWidget(icon: "calendar", title: "Calendar")
-                    PreviewWidget(icon: "note.text", title: "Notes")
+                GeometryReader { proxy in
+                    let widgets = model.orderedWidgetConfigs().filter(\.isEnabled)
+                    let activeWidgets = widgets.isEmpty ? NookWidgetConfig.defaults.filter(\.isEnabled) : widgets
+                    let spacing: CGFloat = 8
+                    let totalSpacing = spacing * CGFloat(max(activeWidgets.count - 1, 0))
+                    let totalWeight = max(activeWidgets.reduce(0) { $0 + $1.weight }, 0.1)
+                    let availableWidth = max(proxy.size.width - 32 - totalSpacing, 1)
+
+                    HStack(spacing: spacing) {
+                        ForEach(activeWidgets) { config in
+                            PreviewWidget(config: config, isDragging: draggedKind == config.kind)
+                                .frame(width: max(58, availableWidth * CGFloat(config.weight / totalWeight)), height: 58)
+                                .onDrag {
+                                    draggedKind = config.kind
+                                    return NSItemProvider(object: config.kind.rawValue as NSString)
+                                }
+                                .onDrop(
+                                    of: [.text],
+                                    delegate: WidgetDropDelegate(
+                                        target: config.kind,
+                                        draggedKind: $draggedKind,
+                                        model: model
+                                    )
+                                )
+                                .contextMenu {
+                                    Button(config.isEnabled ? "Hide" : "Show") {
+                                        model.setWidgetEnabled(config.kind, isEnabled: !config.isEnabled)
+                                    }
+                                    Button("Wider") {
+                                        model.setWidgetWeight(config.kind, weight: config.weight + 0.2)
+                                    }
+                                    Button("Narrower") {
+                                        model.setWidgetWeight(config.kind, weight: config.weight - 0.2)
+                                    }
+                                }
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .frame(width: proxy.size.width, height: proxy.size.height, alignment: .center)
                 }
-                .padding(.horizontal, 16)
             }
             .frame(height: 92)
         }
@@ -365,23 +408,53 @@ private struct NookPreviewCard: View {
 }
 
 private struct PreviewWidget: View {
-    let icon: String
-    let title: String
+    @EnvironmentObject private var model: NookModel
+    let config: NookWidgetConfig
+    let isDragging: Bool
 
     var body: some View {
         VStack(spacing: 6) {
-            Image(systemName: icon)
+            Image(systemName: config.kind.symbol)
                 .font(.system(size: 15, weight: .bold))
                 .foregroundStyle(.white.opacity(0.82))
-            Text(title)
+            Text(config.kind.title)
                 .font(.system(size: 12, weight: .bold))
                 .foregroundStyle(.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
         }
         .frame(maxWidth: .infinity, maxHeight: 58)
         .background(
             RoundedRectangle(cornerRadius: 13, style: .continuous)
-                .fill(Color(red: 0.10, green: 0.10, blue: 0.11))
+                .fill(isDragging ? model.theme.accent.opacity(0.36) : Color(red: 0.10, green: 0.10, blue: 0.11))
         )
+        .overlay(
+            RoundedRectangle(cornerRadius: 13, style: .continuous)
+                .stroke(isDragging ? model.theme.accent.opacity(0.95) : .white.opacity(0.04), lineWidth: 1)
+        )
+    }
+}
+
+private struct WidgetDropDelegate: DropDelegate {
+    let target: NookWidgetKind
+    @Binding var draggedKind: NookWidgetKind?
+    let model: NookModel
+
+    func dropEntered(info: DropInfo) {
+        guard let draggedKind, draggedKind != target else { return }
+        let ordered = model.orderedWidgetConfigs()
+        guard let from = ordered.firstIndex(where: { $0.kind == draggedKind }),
+              let to = ordered.firstIndex(where: { $0.kind == target }) else { return }
+        model.moveWidget(draggedKind, direction: to > from ? 1 : -1)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        draggedKind = nil
+        return true
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
     }
 }
 
@@ -420,29 +493,108 @@ private struct AppearanceSettings: View {
 }
 
 private struct WidgetSettings: View {
-    @AppStorage("NotchDesk.mediaWidgetEnabled") private var mediaWidgetEnabled = true
-    @AppStorage("NotchDesk.calendarWidgetEnabled") private var calendarWidgetEnabled = true
-    @AppStorage("NotchDesk.shortcutsWidgetEnabled") private var shortcutsWidgetEnabled = true
-    @AppStorage("NotchDesk.mirrorWidgetEnabled") private var mirrorWidgetEnabled = true
-    @AppStorage("NotchDesk.notesWidgetEnabled") private var notesWidgetEnabled = false
     @AppStorage("NotchDesk.nookAutoWidth") private var nookAutoWidth = true
-    @AppStorage("NotchDesk.nookWidthCells") private var nookWidthCells = 5.0
+    @EnvironmentObject private var model: NookModel
 
     var body: some View {
-        SettingsSection(title: "Customize widgets", subtitle: "Enable widgets and tune the Nook width.") {
+        SettingsSection(title: "Customize widgets", subtitle: "Choose what appears, its order, and its width ratio.") {
             VStack(spacing: 12) {
-                HStack(spacing: 10) {
-                    WidgetToggleTile(title: "Media", subtitle: "5 cells", icon: "music.note", isOn: $mediaWidgetEnabled)
-                    WidgetToggleTile(title: "Calendar", subtitle: "4 cells", icon: "calendar", isOn: $calendarWidgetEnabled)
-                    WidgetToggleTile(title: "Shortcuts", subtitle: "2 buttons", icon: "sparkles", isOn: $shortcutsWidgetEnabled)
-                    WidgetToggleTile(title: "Mirror", subtitle: "Camera", icon: "camera.fill", isOn: $mirrorWidgetEnabled)
-                    WidgetToggleTile(title: "Notes", subtitle: "Preview", icon: "note.text", isOn: $notesWidgetEnabled)
+                HStack {
+                    Toggle("Use auto width", isOn: $nookAutoWidth)
+                        .toggleStyle(.switch)
+                    Spacer()
+                    Button("Use Custom") {
+                        model.nookLayout = .custom
+                    }
+                    .buttonStyle(SettingsPillButtonStyle())
+                    Button("Reset") {
+                        model.resetWidgetLayout()
+                    }
+                    .buttonStyle(SettingsPillButtonStyle())
                 }
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(.white.opacity(0.82))
+                .padding(12)
+                .background(InnerPanelBackground())
 
-                ToggleRow(title: "Auto width", subtitle: "Let the Nook adjust when widgets are added or removed.", isOn: $nookAutoWidth)
-                SliderRow(title: "Manual width", value: $nookWidthCells, range: 3...8, valueText: "\(Int(nookWidthCells)) cells")
+                VStack(spacing: 8) {
+                    ForEach(model.orderedWidgetConfigs()) { config in
+                        WidgetConfigRow(config: config)
+                    }
+                }
             }
         }
+    }
+}
+
+private struct WidgetConfigRow: View {
+    @EnvironmentObject private var model: NookModel
+    let config: NookWidgetConfig
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: config.kind.symbol)
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(config.isEnabled ? model.theme.accent : .white.opacity(0.32))
+                .frame(width: 22)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(config.kind.title)
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(.white)
+                Text(config.kind.subtitle)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.46))
+            }
+            .frame(width: 94, alignment: .leading)
+
+            Toggle("", isOn: enabledBinding)
+                .toggleStyle(.switch)
+                .labelsHidden()
+                .scaleEffect(0.72)
+                .frame(width: 42)
+
+            Slider(value: weightBinding, in: 0.5...3.0)
+                .frame(width: 170)
+                .disabled(config.isEnabled == false)
+                .opacity(config.isEnabled ? 1.0 : 0.35)
+
+            Text(String(format: "%.1fx", config.weight))
+                .font(.system(size: 11, weight: .black))
+                .foregroundStyle(.white.opacity(0.56))
+                .frame(width: 42, alignment: .trailing)
+
+            HStack(spacing: 4) {
+                Button {
+                    model.moveWidget(config.kind, direction: -1)
+                } label: {
+                    Image(systemName: "chevron.up")
+                }
+                Button {
+                    model.moveWidget(config.kind, direction: 1)
+                } label: {
+                    Image(systemName: "chevron.down")
+                }
+            }
+            .buttonStyle(SettingsIconButtonStyle())
+        }
+        .padding(.horizontal, 12)
+        .frame(height: 56)
+        .background(InnerPanelBackground())
+    }
+
+    private var enabledBinding: Binding<Bool> {
+        Binding(
+            get: { config.isEnabled },
+            set: { model.setWidgetEnabled(config.kind, isEnabled: $0) }
+        )
+    }
+
+    private var weightBinding: Binding<Double> {
+        Binding(
+            get: { config.weight },
+            set: { model.setWidgetWeight(config.kind, weight: $0) }
+        )
     }
 }
 
@@ -843,6 +995,19 @@ private struct SettingsPillButtonStyle: ButtonStyle {
             .background(
                 Capsule()
                     .fill(.white.opacity(configuration.isPressed ? 0.08 : 0.12))
+            )
+    }
+}
+
+private struct SettingsIconButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 10, weight: .black))
+            .foregroundStyle(.white.opacity(configuration.isPressed ? 0.48 : 0.74))
+            .frame(width: 24, height: 24)
+            .background(
+                Circle()
+                    .fill(.white.opacity(configuration.isPressed ? 0.12 : 0.07))
             )
     }
 }

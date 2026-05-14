@@ -99,6 +99,7 @@ enum NookTheme: String, CaseIterable, Identifiable {
 enum NookLayout: String, CaseIterable, Identifiable {
     case classic
     case musicLarge
+    case custom
 
     var id: String { rawValue }
 
@@ -106,6 +107,7 @@ enum NookLayout: String, CaseIterable, Identifiable {
         switch self {
         case .classic: "Classic"
         case .musicLarge: "Music"
+        case .custom: "Custom"
         }
     }
 
@@ -113,8 +115,81 @@ enum NookLayout: String, CaseIterable, Identifiable {
         switch self {
         case .classic: "rectangle.3.group"
         case .musicLarge: "music.note"
+        case .custom: "slider.horizontal.3"
         }
     }
+}
+
+enum NookWidgetKind: String, CaseIterable, Identifiable, Codable {
+    case actions
+    case media
+    case calendar
+    case mirror
+    case shortcuts
+    case notes
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .actions: "Actions"
+        case .media: "Media"
+        case .calendar: "Calendar"
+        case .mirror: "Mirror"
+        case .shortcuts: "Quick"
+        case .notes: "Notes"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .actions: "Nook buttons"
+        case .media: "Now Playing"
+        case .calendar: "Events"
+        case .mirror: "Camera"
+        case .shortcuts: "Shortcuts"
+        case .notes: "Scratch notes"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .actions: "sparkles"
+        case .media: "music.note"
+        case .calendar: "calendar"
+        case .mirror: "camera.fill"
+        case .shortcuts: "bolt.fill"
+        case .notes: "note.text"
+        }
+    }
+
+    var defaultWeight: Double {
+        switch self {
+        case .actions: 1.15
+        case .media: 1.55
+        case .calendar: 1.25
+        case .mirror: 0.62
+        case .shortcuts: 1.10
+        case .notes: 1.10
+        }
+    }
+}
+
+struct NookWidgetConfig: Identifiable, Codable, Equatable {
+    var id: NookWidgetKind { kind }
+    var kind: NookWidgetKind
+    var isEnabled: Bool
+    var weight: Double
+    var order: Int
+
+    static let defaults: [NookWidgetConfig] = [
+        NookWidgetConfig(kind: .actions, isEnabled: true, weight: NookWidgetKind.actions.defaultWeight, order: 0),
+        NookWidgetConfig(kind: .media, isEnabled: true, weight: NookWidgetKind.media.defaultWeight, order: 1),
+        NookWidgetConfig(kind: .calendar, isEnabled: true, weight: NookWidgetKind.calendar.defaultWeight, order: 2),
+        NookWidgetConfig(kind: .mirror, isEnabled: true, weight: NookWidgetKind.mirror.defaultWeight, order: 3),
+        NookWidgetConfig(kind: .shortcuts, isEnabled: false, weight: NookWidgetKind.shortcuts.defaultWeight, order: 4),
+        NookWidgetConfig(kind: .notes, isEnabled: false, weight: NookWidgetKind.notes.defaultWeight, order: 5)
+    ]
 }
 
 enum NookTab: String, CaseIterable, Identifiable {

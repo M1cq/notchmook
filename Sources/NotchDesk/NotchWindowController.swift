@@ -6,7 +6,7 @@ final class NotchWindowController: NSWindowController {
     private let model: NookModel
     private var cancellables = Set<AnyCancellable>()
 
-    private let collapsedHoverSize = NSSize(width: 68, height: 14)
+    private let collapsedHoverSize = NSSize(width: 82, height: 18)
     private let expandedSize = NSSize(width: 590, height: 116)
     private var hoverTimer: Timer?
 
@@ -268,10 +268,10 @@ private final class ClearHostingView<Content: View>: NSHostingView<Content> {
 
     private var collapsedHoverRect: NSRect {
         NSRect(
-            x: bounds.midX - 34,
-            y: bounds.maxY - 14,
-            width: 68,
-            height: 14
+            x: bounds.midX - 41,
+            y: bounds.maxY - 18,
+            width: 82,
+            height: 18
         )
     }
 

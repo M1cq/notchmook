@@ -32,6 +32,11 @@ final class NookModel: ObservableObject {
             UserDefaults.standard.set(nookLayout.rawValue, forKey: Self.layoutDefaultsKey)
         }
     }
+    @Published var nookWidgetConfigs: [NookWidgetConfig] = NookWidgetConfig.defaults {
+        didSet {
+            saveNookWidgetConfigs()
+        }
+    }
 
     let mediaController = MediaController()
     let calendarProvider = CalendarProvider()
@@ -41,6 +46,7 @@ final class NookModel: ObservableObject {
     private var collapseTask: DispatchWorkItem?
     private static let themeDefaultsKey = "NotchDesk.theme"
     private static let layoutDefaultsKey = "NotchDesk.layout"
+    private static let widgetConfigsDefaultsKey = "NotchDesk.widgetConfigs"
     private static let shortcutsDefaultsKey = "NotchDesk.customShortcuts"
     private static let nookActionsDefaultsKey = "NotchDesk.nookActions"
 
@@ -52,6 +58,11 @@ final class NookModel: ObservableObject {
         let storedLayout = UserDefaults.standard.string(forKey: Self.layoutDefaultsKey)
             .flatMap(NookLayout.init(rawValue:))
         nookLayout = storedLayout ?? .classic
+
+        if let data = UserDefaults.standard.data(forKey: Self.widgetConfigsDefaultsKey),
+           let decoded = try? JSONDecoder().decode([NookWidgetConfig].self, from: data) {
+            nookWidgetConfigs = Self.normalizedWidgetConfigs(decoded)
+        }
 
         if let data = UserDefaults.standard.data(forKey: Self.nookActionsDefaultsKey),
            let decoded = try? JSONDecoder().decode([NookActionConfig].self, from: data),
@@ -184,6 +195,50 @@ final class NookModel: ObservableObject {
         customShortcutItems.removeAll { $0.id == item.id }
     }
 
+    func setWidgetEnabled(_ kind: NookWidgetKind, isEnabled: Bool) {
+        updateWidget(kind) { config in
+            config.isEnabled = isEnabled
+        }
+        if isEnabled {
+            nookLayout = .custom
+        }
+    }
+
+    func setWidgetWeight(_ kind: NookWidgetKind, weight: Double) {
+        updateWidget(kind) { config in
+            config.weight = min(max(weight, 0.5), 3.0)
+        }
+        nookLayout = .custom
+    }
+
+    func moveWidget(_ kind: NookWidgetKind, direction: Int) {
+        var configs = orderedWidgetConfigs()
+        guard let index = configs.firstIndex(where: { $0.kind == kind }) else { return }
+        let destination = index + direction
+        guard configs.indices.contains(destination) else { return }
+        configs.swapAt(index, destination)
+        for index in configs.indices {
+            configs[index].order = index
+        }
+        nookWidgetConfigs = configs
+        nookLayout = .custom
+    }
+
+    func resetWidgetLayout() {
+        nookWidgetConfigs = NookWidgetConfig.defaults
+        nookLayout = .custom
+    }
+
+    func orderedWidgetConfigs() -> [NookWidgetConfig] {
+        Self.normalizedWidgetConfigs(nookWidgetConfigs)
+            .sorted { lhs, rhs in
+                if lhs.order == rhs.order {
+                    return lhs.kind.rawValue < rhs.kind.rawValue
+                }
+                return lhs.order < rhs.order
+            }
+    }
+
     private func rebuildShortcuts() {
         shortcuts = ShortcutProvider(model: self).shortcuts(customItems: customShortcutItems)
     }
@@ -198,12 +253,32 @@ final class NookModel: ObservableObject {
         UserDefaults.standard.set(encoded, forKey: Self.nookActionsDefaultsKey)
     }
 
+    private func saveNookWidgetConfigs() {
+        guard let encoded = try? JSONEncoder().encode(orderedWidgetConfigs()) else { return }
+        UserDefaults.standard.set(encoded, forKey: Self.widgetConfigsDefaultsKey)
+    }
+
     private func normalizedNookActions() -> [NookActionConfig] {
         var normalized = Array(nookActions.prefix(2))
         while normalized.count < 2 {
             normalized.append(NookActionConfig.defaults[normalized.count])
         }
         return normalized
+    }
+
+    private func updateWidget(_ kind: NookWidgetKind, update: (inout NookWidgetConfig) -> Void) {
+        var configs = orderedWidgetConfigs()
+        guard let index = configs.firstIndex(where: { $0.kind == kind }) else { return }
+        update(&configs[index])
+        nookWidgetConfigs = configs
+    }
+
+    private static func normalizedWidgetConfigs(_ configs: [NookWidgetConfig]) -> [NookWidgetConfig] {
+        var byKind = Dictionary(uniqueKeysWithValues: configs.map { ($0.kind, $0) })
+        for defaultConfig in NookWidgetConfig.defaults where byKind[defaultConfig.kind] == nil {
+            byKind[defaultConfig.kind] = defaultConfig
+        }
+        return NookWidgetKind.allCases.compactMap { byKind[$0] }
     }
 
     private func openApp(named name: String) {

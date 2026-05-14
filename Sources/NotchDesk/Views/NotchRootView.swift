@@ -359,6 +359,8 @@ private struct NookStripContent: View {
                 ClassicNookStripContent()
             case .musicLarge:
                 MusicLargeNookStripContent()
+            case .custom:
+                CustomNookStripContent()
             }
         }
     }
@@ -454,6 +456,130 @@ private struct MusicLargeNookStripContent: View {
             .buttonStyle(.plain)
         }
         .frame(maxWidth: .infinity)
+    }
+}
+
+private struct CustomNookStripContent: View {
+    @EnvironmentObject private var model: NookModel
+
+    var body: some View {
+        GeometryReader { proxy in
+            let widgets = model.orderedWidgetConfigs().filter(\.isEnabled)
+            let activeWidgets = widgets.isEmpty ? NookWidgetConfig.defaults.filter(\.isEnabled) : widgets
+            let spacing: CGFloat = 10
+            let totalSpacing = spacing * CGFloat(max(activeWidgets.count - 1, 0))
+            let totalWeight = max(activeWidgets.reduce(0) { $0 + $1.weight }, 0.1)
+            let availableWidth = max(proxy.size.width - totalSpacing, 1)
+
+            HStack(spacing: spacing) {
+                ForEach(activeWidgets) { config in
+                    CustomNookWidget(config: config)
+                        .frame(
+                            width: max(44, availableWidth * CGFloat(config.weight / totalWeight)),
+                            height: 64
+                        )
+                        .clipped()
+                }
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height, alignment: .center)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+private struct CustomNookWidget: View {
+    @EnvironmentObject private var model: NookModel
+    let config: NookWidgetConfig
+
+    var body: some View {
+        switch config.kind {
+        case .actions:
+            VStack(spacing: 8) {
+                ForEach(Array(model.nookActions.prefix(2).enumerated()), id: \.element.id) { _, action in
+                    NookActionButton(title: action.title, icon: action.symbol, tint: action.tint) {
+                        model.performNookAction(action)
+                    }
+                }
+            }
+        case .media:
+            CompactMediaBlock(controller: model.mediaController)
+        case .calendar:
+            CompactCalendarBlock(provider: model.calendarProvider)
+        case .mirror:
+            MirrorWidgetButton()
+        case .shortcuts:
+            CustomShortcutsWidget()
+        case .notes:
+            NotesWidget()
+        }
+    }
+}
+
+private struct MirrorWidgetButton: View {
+    @EnvironmentObject private var model: NookModel
+
+    var body: some View {
+        Button {
+            model.expand(tab: .mirror)
+        } label: {
+            VStack(spacing: 4) {
+                Image(systemName: "camera.circle.fill")
+                    .font(.system(size: 23, weight: .semibold))
+                Text("ミラー")
+                    .font(.system(size: 9, weight: .bold))
+            }
+            .foregroundStyle(.white.opacity(0.78))
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Circle().fill(.black.opacity(0.32)))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct CustomShortcutsWidget: View {
+    @EnvironmentObject private var model: NookModel
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(model.shortcuts.prefix(2)) { shortcut in
+                Button {
+                    shortcut.action()
+                } label: {
+                    VStack(spacing: 4) {
+                        Image(systemName: shortcut.symbol)
+                            .font(.system(size: 13, weight: .bold))
+                        Text(shortcut.title)
+                            .font(.system(size: 8, weight: .bold))
+                            .lineLimit(1)
+                    }
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity, maxHeight: 56)
+                    .background(RoundedRectangle(cornerRadius: 13, style: .continuous).fill(.black.opacity(0.24)))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+}
+
+private struct NotesWidget: View {
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "note.text")
+                .font(.system(size: 17, weight: .bold))
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Notes")
+                    .font(.system(size: 11, weight: .bold))
+                Text("Quick note")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.52))
+            }
+            Spacer(minLength: 0)
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 10)
+        .frame(maxWidth: .infinity, maxHeight: 56)
+        .background(RoundedRectangle(cornerRadius: 15, style: .continuous).fill(.black.opacity(0.24)))
     }
 }
 
