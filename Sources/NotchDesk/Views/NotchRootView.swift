@@ -306,7 +306,7 @@ private struct StripBackground: View {
             )
             .fill(
                 LinearGradient(
-                    colors: model.theme.gradient.map { $0.opacity(0.88) },
+                    colors: model.theme.gradient.map { $0.opacity(model.theme == .black ? 1.0 : 0.88) },
                     startPoint: .leading,
                     endPoint: .trailing
                 )
@@ -319,13 +319,28 @@ private struct StripBackground: View {
                 bottomTrailingRadius: 24,
                 topTrailingRadius: 0
             )
-            .stroke(.white.opacity(0.10), lineWidth: 1)
+            .stroke(.white.opacity(model.theme == .black ? 0.0 : 0.10), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.34), radius: 18, y: 8)
     }
 }
 
 private struct NookStripContent: View {
+    @EnvironmentObject private var model: NookModel
+
+    var body: some View {
+        Group {
+            switch model.nookLayout {
+            case .classic:
+                ClassicNookStripContent()
+            case .musicLarge:
+                MusicLargeNookStripContent()
+            }
+        }
+    }
+}
+
+private struct ClassicNookStripContent: View {
     @EnvironmentObject private var model: NookModel
 
     var body: some View {
@@ -365,6 +380,54 @@ private struct NookStripContent: View {
 
             CompactCalendarBlock(provider: model.calendarProvider)
                 .frame(width: 140)
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
+private struct MusicLargeNookStripContent: View {
+    @EnvironmentObject private var model: NookModel
+
+    var body: some View {
+        HStack(spacing: 14) {
+            HeroMediaBlock(controller: model.mediaController)
+                .frame(width: 216)
+
+            VerticalSeparator()
+
+            VStack(spacing: 8) {
+                if let action = model.nookActions.first {
+                    NookActionButton(title: action.title, icon: action.symbol, tint: action.tint) {
+                        model.performNookAction(action)
+                    }
+                    .frame(width: 178)
+                }
+                if model.nookActions.count > 1 {
+                    let action = model.nookActions[1]
+                    NookActionButton(title: action.title, icon: action.symbol, tint: action.tint) {
+                        model.performNookAction(action)
+                    }
+                    .frame(width: 178)
+                }
+            }
+            .frame(width: 190)
+
+            VerticalSeparator()
+
+            Button {
+                model.expand(tab: .mirror)
+            } label: {
+                VStack(spacing: 4) {
+                    Image(systemName: "camera.circle.fill")
+                        .font(.system(size: 25, weight: .semibold))
+                    Text("ミラー")
+                        .font(.system(size: 9, weight: .bold))
+                }
+                .foregroundStyle(.white.opacity(0.76))
+                .frame(width: 62, height: 62)
+                .background(Circle().fill(.white.opacity(0.08)))
+            }
+            .buttonStyle(.plain)
         }
         .frame(maxWidth: .infinity)
     }
@@ -462,12 +525,12 @@ private struct SettingsStripContent: View {
     @EnvironmentObject private var model: NookModel
 
     var body: some View {
-        HStack(spacing: 12) {
-            CompactToggle(title: "Hover", isOn: $model.autoExpandOnHover)
-            CompactToggle(title: "Pinned", isOn: $model.isPinned)
+        HStack(spacing: 8) {
             SettingsWindowButton()
-            PermissionButton()
             ThemeSwatches()
+            CompactToggle(title: "Hover", isOn: $model.autoExpandOnHover)
+            CompactToggle(title: "Pin", isOn: $model.isPinned)
+            PermissionButton()
             Spacer()
         }
     }
@@ -476,7 +539,7 @@ private struct SettingsStripContent: View {
 private struct SettingsWindowButton: View {
     var body: some View {
         Button {
-            (NSApp.delegate as? AppDelegate)?.showSettingsWindow()
+            openSettingsWindow()
         } label: {
             VStack(spacing: 6) {
                 Image(systemName: "slider.horizontal.3")
@@ -487,9 +550,15 @@ private struct SettingsWindowButton: View {
             .foregroundStyle(.white)
             .frame(width: 58, height: 54)
             .background(RoundedRectangle(cornerRadius: 15, style: .continuous).fill(.black.opacity(0.24)))
+            .contentShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
         }
         .buttonStyle(.plain)
+        .simultaneousGesture(TapGesture().onEnded(openSettingsWindow))
         .help("Open customization settings")
+    }
+
+    private func openSettingsWindow() {
+        NotificationCenter.default.post(name: .openNotchDeskSettings, object: nil)
     }
 }
 
@@ -506,11 +575,48 @@ private struct PermissionButton: View {
                     .font(.system(size: 9, weight: .bold))
             }
             .foregroundStyle(.white)
-            .frame(width: 70, height: 54)
+            .frame(width: 58, height: 54)
             .background(RoundedRectangle(cornerRadius: 15, style: .continuous).fill(.black.opacity(0.24)))
         }
         .buttonStyle(.plain)
         .help("Request Automation permissions")
+    }
+}
+
+private struct HeroMediaBlock: View {
+    @ObservedObject var controller: MediaController
+
+    var body: some View {
+        let snapshot = controller.snapshot
+
+        HStack(spacing: 10) {
+            AlbumTile(snapshot: snapshot)
+                .frame(width: 62, height: 62)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(snapshot.title)
+                    .font(.system(size: 12, weight: .black))
+                    .foregroundStyle(.white)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text(snapshot.artist)
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.58))
+                    .lineLimit(1)
+
+                HStack(spacing: 12) {
+                    Button { controller.previousTrack() } label: { Image(systemName: "backward.fill") }
+                    Button { controller.togglePlayPause() } label: { Image(systemName: snapshot.isPlaying ? "pause.fill" : "play.fill") }
+                    Button { controller.nextTrack() } label: { Image(systemName: "forward.fill") }
+                }
+                .font(.system(size: 9, weight: .black))
+                .foregroundStyle(.white.opacity(0.90))
+                .buttonStyle(.plain)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .onAppear { controller.refresh() }
     }
 }
 
@@ -568,10 +674,18 @@ private struct CompactCalendarBlock: View {
                 }
             }
 
-            HStack(spacing: 6) {
+            HStack(spacing: 5) {
                 Image(systemName: "calendar.badge.clock")
-                Text(provider.entries.first?.title ?? "今日の予定はありません")
-                    .lineLimit(1)
+                if let entry = provider.entries.first {
+                    Text(timeText(for: entry))
+                        .font(.system(size: 9, weight: .black))
+                        .foregroundStyle(model.theme.accent)
+                    Text(entry.title)
+                        .lineLimit(1)
+                } else {
+                    Text("今日の予定はありません")
+                        .lineLimit(1)
+                }
             }
             .font(.system(size: 9, weight: .bold))
             .foregroundStyle(.white.opacity(0.52))
@@ -599,6 +713,13 @@ private struct CompactCalendarBlock: View {
             return date.formatted(.dateTime.day(.twoDigits))
         }
     }
+
+    private func timeText(for entry: CalendarEntry) -> String {
+        if entry.isAllDay {
+            return "終日"
+        }
+        return entry.startDate.formatted(date: .omitted, time: .shortened)
+    }
 }
 
 private struct AlbumTile: View {
@@ -606,40 +727,21 @@ private struct AlbumTile: View {
     let snapshot: MediaSnapshot
 
     var body: some View {
-        ZStack(alignment: .bottomTrailing) {
-            MediaArtworkView(artworkURL: snapshot.artworkURL, cornerRadius: 15) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 15, style: .continuous)
-                        .fill(
-                            LinearGradient(
-                                colors: model.theme.albumGradient,
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
+        MediaArtworkView(artworkURL: snapshot.artworkURL, cornerRadius: 15) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 15, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: model.theme.albumGradient,
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
                         )
-                    Image(systemName: snapshot.isPlaying ? "waveform" : "music.note")
-                        .font(.system(size: 23, weight: .bold))
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
+                    )
+                Image(systemName: snapshot.isPlaying ? "waveform" : "music.note")
+                    .font(.system(size: 23, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            Image(systemName: badgeSymbol)
-                .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(.white)
-                .frame(width: 22, height: 22)
-                .background(Circle().fill(model.theme.accent))
-                .offset(x: 4, y: 4)
-        }
-    }
-
-    private var badgeSymbol: String {
-        switch snapshot.appName {
-        case "YouTube Music", "YouTube":
-            "play.fill"
-        case "Spotify":
-            "music.note"
-        default:
-            "music.note.list"
         }
     }
 }
@@ -708,7 +810,7 @@ private struct CompactToggle: View {
                 .labelsHidden()
                 .toggleStyle(.switch)
         }
-        .frame(width: 86, height: 54)
+        .frame(width: 66, height: 54)
         .background(RoundedRectangle(cornerRadius: 15, style: .continuous).fill(.black.opacity(0.24)))
     }
 }
@@ -717,46 +819,34 @@ private struct ThemeSwatches: View {
     @EnvironmentObject private var model: NookModel
 
     var body: some View {
-        HStack(spacing: 8) {
-            ForEach(NookTheme.allCases) { theme in
-                Button {
-                    model.theme = theme
-                } label: {
-                    VStack(spacing: 5) {
-                        ZStack {
-                            Circle()
-                                .fill(
-                                    LinearGradient(
-                                        colors: theme.gradient,
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    )
-                                )
-                                .frame(width: 26, height: 26)
-                            if model.theme == theme {
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 10, weight: .black))
-                                    .foregroundStyle(.white)
-                            }
-                        }
-                        Text(theme.title)
-                            .font(.system(size: 8, weight: .bold))
-                            .foregroundStyle(.white.opacity(model.theme == theme ? 0.92 : 0.52))
-                            .lineLimit(1)
+        Menu {
+            Section("Theme") {
+                ForEach(NookTheme.allCases) { theme in
+                    Button(theme.title) {
+                        model.theme = theme
                     }
-                    .frame(width: 48, height: 54)
-                    .background(
-                        RoundedRectangle(cornerRadius: 15, style: .continuous)
-                            .fill(model.theme == theme ? .white.opacity(0.12) : .black.opacity(0.18))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 15, style: .continuous)
-                            .stroke(model.theme == theme ? theme.accent.opacity(0.8) : .clear, lineWidth: 1)
-                    )
                 }
-                .buttonStyle(.plain)
-                .help(theme.title)
             }
+            Section("Layout") {
+                ForEach(NookLayout.allCases) { layout in
+                    Button(layout.title) {
+                        model.nookLayout = layout
+                    }
+                }
+            }
+        } label: {
+            VStack(spacing: 6) {
+                Image(systemName: "paintpalette.fill")
+                    .font(.system(size: 15, weight: .bold))
+                Text("Style")
+                    .font(.system(size: 9, weight: .bold))
+            }
+            .foregroundStyle(.white)
+            .frame(width: 58, height: 54)
+            .background(RoundedRectangle(cornerRadius: 15, style: .continuous).fill(.black.opacity(0.24)))
         }
+        .menuStyle(.borderlessButton)
+        .buttonStyle(.plain)
+        .help("Theme and layout")
     }
 }

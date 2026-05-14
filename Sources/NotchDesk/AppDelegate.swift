@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     let model = NookModel()
 
     private var windowController: NotchWindowController?
@@ -10,6 +10,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(openSettings),
+            name: .openNotchDeskSettings,
+            object: nil
+        )
 
         let controller = NotchWindowController(model: model)
         controller.showWindow(nil)
@@ -59,9 +65,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func showSettingsWindow() {
+        NSApp.setActivationPolicy(.regular)
+
         if let settingsWindowController {
             settingsWindowController.showWindow(nil)
+            settingsWindowController.window?.orderFrontRegardless()
             settingsWindowController.window?.makeKeyAndOrderFront(nil)
+            NSRunningApplication.current.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
             NSApp.activate(ignoringOtherApps: true)
             return
         }
@@ -70,9 +80,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             rootView: SettingsPane()
                 .environmentObject(model)
         )
-        let window = NSWindow(
+        let window = SettingsPanel(
             contentRect: NSRect(x: 0, y: 0, width: 700, height: 380),
-            styleMask: [.titled, .closable, .miniaturizable],
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .utilityWindow],
             backing: .buffered,
             defer: false
         )
@@ -80,11 +90,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.contentView = hostingView
         window.center()
         window.isReleasedWhenClosed = false
+        window.level = .floating
+        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        window.delegate = self
 
         let controller = NSWindowController(window: window)
         settingsWindowController = controller
         controller.showWindow(nil)
+        window.orderFrontRegardless()
         window.makeKeyAndOrderFront(nil)
+        NSRunningApplication.current.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
         NSApp.activate(ignoringOtherApps: true)
     }
+
+    func windowWillClose(_ notification: Notification) {
+        if notification.object as? NSWindow === settingsWindowController?.window {
+            NSApp.setActivationPolicy(.accessory)
+        }
+    }
+}
+
+private final class SettingsPanel: NSPanel {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { true }
+}
+
+extension Notification.Name {
+    static let openNotchDeskSettings = Notification.Name("NotchDesk.openSettings")
 }

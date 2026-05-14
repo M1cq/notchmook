@@ -26,6 +26,11 @@ final class NookModel: ObservableObject {
             UserDefaults.standard.set(theme.rawValue, forKey: Self.themeDefaultsKey)
         }
     }
+    @Published var nookLayout: NookLayout {
+        didSet {
+            UserDefaults.standard.set(nookLayout.rawValue, forKey: Self.layoutDefaultsKey)
+        }
+    }
 
     let mediaController = MediaController()
     let calendarProvider = CalendarProvider()
@@ -34,6 +39,7 @@ final class NookModel: ObservableObject {
 
     private var collapseTask: DispatchWorkItem?
     private static let themeDefaultsKey = "NotchDesk.theme"
+    private static let layoutDefaultsKey = "NotchDesk.layout"
     private static let shortcutsDefaultsKey = "NotchDesk.customShortcuts"
     private static let nookActionsDefaultsKey = "NotchDesk.nookActions"
 
@@ -41,6 +47,10 @@ final class NookModel: ObservableObject {
         let storedTheme = UserDefaults.standard.string(forKey: Self.themeDefaultsKey)
             .flatMap(NookTheme.init(rawValue:))
         theme = storedTheme ?? .dusk
+
+        let storedLayout = UserDefaults.standard.string(forKey: Self.layoutDefaultsKey)
+            .flatMap(NookLayout.init(rawValue:))
+        nookLayout = storedLayout ?? .classic
 
         if let data = UserDefaults.standard.data(forKey: Self.nookActionsDefaultsKey),
            let decoded = try? JSONDecoder().decode([NookActionConfig].self, from: data),

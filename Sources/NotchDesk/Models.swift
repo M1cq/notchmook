@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 
 enum NookTheme: String, CaseIterable, Identifiable {
+    case black
     case dusk
     case graphite
     case ocean
@@ -11,6 +12,7 @@ enum NookTheme: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
+        case .black: "Black"
         case .dusk: "Dusk"
         case .graphite: "Graphite"
         case .ocean: "Ocean"
@@ -20,6 +22,11 @@ enum NookTheme: String, CaseIterable, Identifiable {
 
     var gradient: [Color] {
         switch self {
+        case .black:
+            [
+                Color.black,
+                Color.black
+            ]
         case .dusk:
             [
                 Color(red: 0.22, green: 0.18, blue: 0.30),
@@ -45,6 +52,7 @@ enum NookTheme: String, CaseIterable, Identifiable {
 
     var accent: Color {
         switch self {
+        case .black: Color(red: 0.88, green: 0.90, blue: 0.92)
         case .dusk: Color(red: 0.56, green: 0.42, blue: 1.0)
         case .graphite: Color(red: 0.74, green: 0.78, blue: 0.82)
         case .ocean: Color(red: 0.25, green: 0.78, blue: 0.92)
@@ -54,6 +62,12 @@ enum NookTheme: String, CaseIterable, Identifiable {
 
     var albumGradient: [Color] {
         switch self {
+        case .black:
+            [
+                Color(red: 0.12, green: 0.12, blue: 0.12),
+                Color(red: 0.02, green: 0.02, blue: 0.02),
+                Color.black
+            ]
         case .dusk:
             [
                 Color(red: 0.13, green: 0.06, blue: 0.24),
@@ -78,6 +92,27 @@ enum NookTheme: String, CaseIterable, Identifiable {
                 Color(red: 0.98, green: 0.42, blue: 0.23),
                 Color(red: 0.18, green: 0.07, blue: 0.08)
             ]
+        }
+    }
+}
+
+enum NookLayout: String, CaseIterable, Identifiable {
+    case classic
+    case musicLarge
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .classic: "Classic"
+        case .musicLarge: "Music"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .classic: "rectangle.3.group"
+        case .musicLarge: "music.note"
         }
     }
 }
