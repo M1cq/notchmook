@@ -81,13 +81,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 .environmentObject(model)
         )
         let window = SettingsPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 700, height: 380),
+            contentRect: NSRect(x: 0, y: 0, width: 700, height: 540),
             styleMask: [.titled, .closable, .miniaturizable, .resizable, .utilityWindow],
             backing: .buffered,
             defer: false
         )
         window.title = "NotchDesk Settings"
         window.contentView = hostingView
+        window.backgroundColor = NSColor(red: 0.17, green: 0.18, blue: 0.21, alpha: 1.0)
         window.center()
         window.isReleasedWhenClosed = false
         window.level = .floating
