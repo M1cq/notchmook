@@ -155,7 +155,7 @@ private struct CollapsedAudioActivity: View {
             let phase = timeline.date.timeIntervalSinceReferenceDate
 
             HStack(alignment: .center, spacing: 3) {
-                ForEach(0..<6, id: \.self) { index in
+                ForEach(0..<3, id: \.self) { index in
                     Capsule()
                         .fill(.white.opacity(isPlaying ? 0.72 : 0.34))
                         .frame(width: 3, height: barHeight(index: index, phase: phase))
@@ -168,10 +168,10 @@ private struct CollapsedAudioActivity: View {
 
     private func barHeight(index: Int, phase: TimeInterval) -> CGFloat {
         guard isPlaying else {
-            return CGFloat([5, 8, 4, 10, 6, 8][index])
+            return CGFloat([5, 10, 7][index])
         }
 
-        let offsets: [Double] = [0.0, 0.9, 1.8, 2.7, 1.2, 2.2]
+        let offsets: [Double] = [0.0, 1.2, 2.4]
         let base = sin((phase * 5.2) + offsets[index])
         let normalized = (base + 1.0) / 2.0
         return 5 + CGFloat(normalized) * 13

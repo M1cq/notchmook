@@ -91,6 +91,8 @@ final class NookModel: ObservableObject {
     func peek() {
         collapseTask?.cancel()
         guard isExpanded == false else { return }
+        guard isPeeking == false else { return }
+        performHapticFeedbackIfNeeded()
         isPeeking = true
     }
 
@@ -271,6 +273,11 @@ final class NookModel: ObservableObject {
         guard let index = configs.firstIndex(where: { $0.kind == kind }) else { return }
         update(&configs[index])
         nookWidgetConfigs = configs
+    }
+
+    private func performHapticFeedbackIfNeeded() {
+        guard UserDefaults.standard.object(forKey: "NotchDesk.hapticFeedback") as? Bool ?? true else { return }
+        NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
     }
 
     private static func normalizedWidgetConfigs(_ configs: [NookWidgetConfig]) -> [NookWidgetConfig] {
