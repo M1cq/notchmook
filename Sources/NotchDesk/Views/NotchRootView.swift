@@ -134,7 +134,7 @@ struct CollapsedNookView: View {
 
     private func width(hasMedia: Bool, peeking: Bool) -> CGFloat {
         if hasMedia {
-            return peeking ? 286 : 252
+            return peeking ? 300 : 272
         }
         return peeking ? 158 : 112
     }
@@ -211,6 +211,8 @@ private struct MediaSourceIcon: View {
         case "Spotify": "music.note"
         case "YouTube Music": "play.fill"
         case "YouTube": "play.rectangle.fill"
+        case "Netflix": "n.square.fill"
+        case "Dia": "play.square.stack.fill"
         case "Now Playing": "play.circle.fill"
         default: "music.note"
         }
@@ -222,6 +224,10 @@ private struct MediaSourceIcon: View {
             [Color(red: 0.12, green: 0.72, blue: 0.32), Color(red: 0.04, green: 0.26, blue: 0.12)]
         case "YouTube Music", "YouTube":
             [Color(red: 0.96, green: 0.10, blue: 0.12), Color(red: 0.36, green: 0.04, blue: 0.08)]
+        case "Netflix":
+            [Color(red: 0.90, green: 0.02, blue: 0.04), Color(red: 0.14, green: 0.00, blue: 0.01)]
+        case "Dia":
+            [Color(red: 0.24, green: 0.24, blue: 0.28), Color(red: 0.04, green: 0.04, blue: 0.06)]
         case "Now Playing":
             [Color(red: 0.18, green: 0.42, blue: 0.94), Color(red: 0.08, green: 0.12, blue: 0.34)]
         default:

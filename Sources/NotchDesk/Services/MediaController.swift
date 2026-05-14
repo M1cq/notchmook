@@ -76,6 +76,9 @@ final class MediaController: ObservableObject {
         if let appleScript = AppleScriptMediaService.currentSnapshot(volume: volume) {
             return appleScript
         }
+        if let mediaRemote = MediaRemoteService.currentSnapshot(volume: volume) {
+            return mediaRemote
+        }
         if let accessibility = AccessibilityMediaService.currentSnapshot(volume: volume) {
             return accessibility
         }
@@ -93,10 +96,6 @@ final class MediaController: ObservableObject {
         let audioProcessFallback = audioProcessFallback(volume: volume)
         if audioProcessFallback.hasMedia {
             return audioProcessFallback
-        }
-
-        if let mediaRemote = MediaRemoteService.currentSnapshot(volume: volume) {
-            return mediaRemote
         }
 
         return MediaSnapshot(outputVolume: volume)
@@ -146,6 +145,21 @@ final class MediaController: ObservableObject {
                 .replacingOccurrences(of: " - YouTube", with: "")
                 .trimmingCharacters(in: CharacterSet(charactersIn: " -\n\t"))
             return splitTitle(cleaned.isEmpty ? normalized : cleaned, appName: "YouTube", fallbackArtist: owner, volume: volume)
+        }
+
+        if normalized.localizedCaseInsensitiveContains("Netflix") {
+            let cleaned = normalized
+                .replacingOccurrences(of: " - Netflix", with: "")
+                .replacingOccurrences(of: "Netflix", with: "")
+                .trimmingCharacters(in: CharacterSet(charactersIn: " -\n\t"))
+            return MediaSnapshot(
+                appName: "Netflix",
+                title: cleaned.isEmpty ? "Netflix" : cleaned,
+                artist: owner.isEmpty ? "Now Playing" : owner,
+                state: "playing",
+                outputVolume: volume,
+                lastUpdated: Date()
+            )
         }
 
         if normalized.localizedCaseInsensitiveContains("Spotify") || owner == "Spotify" {

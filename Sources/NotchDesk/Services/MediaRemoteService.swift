@@ -147,6 +147,12 @@ enum MediaRemoteService {
         if rawValue.localizedCaseInsensitiveContains("Spotify") {
             return "Spotify"
         }
+        if rawValue.localizedCaseInsensitiveContains("Netflix") {
+            return "Netflix"
+        }
+        if rawValue.localizedCaseInsensitiveContains("Dia") {
+            return "Dia"
+        }
         if rawValue.localizedCaseInsensitiveContains("Music") {
             return "Music"
         }

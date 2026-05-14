@@ -5,7 +5,11 @@ enum AppleScriptMediaService {
     static func currentSnapshot(volume: Int) -> MediaSnapshot? {
         musicSnapshot(volume: volume)
             ?? spotifySnapshot(volume: volume)
-            ?? chromeSnapshot(volume: volume)
+            ?? browserSnapshot(appName: "Google Chrome", displayName: "Chrome", bundleIdentifier: "com.google.Chrome", volume: volume)
+            ?? browserSnapshot(appName: "Dia", displayName: "Dia", bundleIdentifier: "", volume: volume)
+            ?? browserSnapshot(appName: "Arc", displayName: "Arc", bundleIdentifier: "company.thebrowser.Browser", volume: volume)
+            ?? browserSnapshot(appName: "Microsoft Edge", displayName: "Edge", bundleIdentifier: "com.microsoft.edgemac", volume: volume)
+            ?? browserSnapshot(appName: "Brave Browser", displayName: "Brave", bundleIdentifier: "com.brave.Browser", volume: volume)
     }
 
     private static func musicSnapshot(volume: Int) -> MediaSnapshot? {
@@ -63,28 +67,39 @@ enum AppleScriptMediaService {
         return snapshot(from: AppleScriptRunner.run(script), fallbackAppName: "Spotify", volume: volume)
     }
 
-    private static func chromeSnapshot(volume: Int) -> MediaSnapshot? {
-        guard isRunning(bundleIdentifier: "com.google.Chrome", appName: "Google Chrome") else { return nil }
+    private static func browserSnapshot(appName: String, displayName: String, bundleIdentifier: String, volume: Int) -> MediaSnapshot? {
+        guard isRunning(bundleIdentifier: bundleIdentifier, appName: appName) else { return nil }
 
         let script = """
         with timeout of 1 seconds
-            tell application "Google Chrome"
-                set jsCode to "(() => { const metadata = navigator.mediaSession && navigator.mediaSession.metadata; const media = Array.from(document.querySelectorAll('video,audio')).find(item => !item.paused && !item.ended) || Array.from(document.querySelectorAll('video,audio'))[0]; const art = metadata && metadata.artwork && metadata.artwork.length ? metadata.artwork[metadata.artwork.length - 1].src : ''; const artwork = art ? new URL(art, location.href).href : ''; const title = (metadata && metadata.title) || document.title || 'Browser Media'; const artist = (metadata && (metadata.artist || metadata.album)) || location.hostname.replace(/^www\\\\./, ''); const state = media ? (media.paused ? 'paused' : 'playing') : 'playing'; return [title, artist, state, artwork].join('|||'); })();"
+            tell application "\(appName)"
+                set jsCode to "(() => { const metadata = navigator.mediaSession && navigator.mediaSession.metadata; const mediaItems = Array.from(document.querySelectorAll('video,audio')); const media = mediaItems.find(item => !item.paused && !item.ended) || mediaItems[0]; if (!metadata && !media) return ''; const host = location.hostname.replace(/^www\\\\./, ''); let source = 'Browser Media'; if (host.includes('music.youtube.com')) source = 'YouTube Music'; else if (host.includes('youtube.com')) source = 'YouTube'; else if (host.includes('netflix.com')) source = 'Netflix'; const art = metadata && metadata.artwork && metadata.artwork.length ? metadata.artwork[metadata.artwork.length - 1].src : ''; const artwork = art ? new URL(art, location.href).href : ''; const title = (metadata && metadata.title) || document.title || source; const artist = (metadata && (metadata.artist || metadata.album)) || host || '\(displayName)'; const state = media ? (media.paused ? 'paused' : 'playing') : 'playing'; return [source, title, artist, state, artwork].join('|||'); })();"
                 repeat with browserWindow in windows
                     repeat with browserTab in tabs of browserWindow
                         set tabURL to URL of browserTab
                         if tabURL contains "music.youtube.com" then
                             try
                                 set jsResult to execute browserTab javascript jsCode
-                                if jsResult is not "" then return "YouTube Music||| " & jsResult
+                                if jsResult is not "" then return jsResult
                             end try
-                            return "YouTube Music||| " & (title of browserTab) & "||| Google Chrome||| playing||| "
+                            return "YouTube Music||| " & (title of browserTab) & "||| \(displayName)||| playing||| "
                         else if tabURL contains "youtube.com/watch" then
                             try
                                 set jsResult to execute browserTab javascript jsCode
-                                if jsResult is not "" then return "YouTube||| " & jsResult
+                                if jsResult is not "" then return jsResult
                             end try
-                            return "YouTube||| " & (title of browserTab) & "||| Google Chrome||| playing||| "
+                            return "YouTube||| " & (title of browserTab) & "||| \(displayName)||| playing||| "
+                        else if tabURL contains "netflix.com" then
+                            try
+                                set jsResult to execute browserTab javascript jsCode
+                                if jsResult is not "" then return jsResult
+                            end try
+                            return "Netflix||| " & (title of browserTab) & "||| \(displayName)||| playing||| "
+                        else
+                            try
+                                set jsResult to execute browserTab javascript jsCode
+                                if jsResult is not "" then return jsResult
+                            end try
                         end if
                     end repeat
                 end repeat
@@ -92,7 +107,7 @@ enum AppleScriptMediaService {
         end timeout
         """
 
-        return snapshot(from: AppleScriptRunner.run(script), fallbackAppName: "Chrome", volume: volume)
+        return snapshot(from: AppleScriptRunner.run(script), fallbackAppName: displayName, volume: volume)
     }
 
     private static func snapshot(from rawValue: String?, fallbackAppName: String, volume: Int) -> MediaSnapshot? {
@@ -139,7 +154,9 @@ enum AppleScriptMediaService {
         title
             .replacingOccurrences(of: " - YouTube Music", with: "")
             .replacingOccurrences(of: " - YouTube", with: "")
+            .replacingOccurrences(of: " - Netflix", with: "")
             .replacingOccurrences(of: "YouTube Music", with: appName == "YouTube Music" ? "" : "YouTube Music")
+            .replacingOccurrences(of: "Netflix", with: appName == "Netflix" ? "" : "Netflix")
             .trimmingCharacters(in: CharacterSet(charactersIn: " -\n\t"))
     }
 

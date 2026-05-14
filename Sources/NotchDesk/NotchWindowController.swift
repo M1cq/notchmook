@@ -159,7 +159,7 @@ final class NotchWindowController: NSWindowController {
 
     private func collapsedIdleSize() -> NSSize {
         model.mediaController.snapshot.hasMedia
-            ? NSSize(width: 252, height: 34)
+            ? NSSize(width: 272, height: 34)
             : NSSize(width: 112, height: 24)
     }
 }
@@ -302,7 +302,7 @@ private final class ClearHostingView<Content: View>: NSHostingView<Content> {
         }
 
         return model.mediaController.snapshot.hasMedia
-            ? NSSize(width: 252, height: 34)
+            ? NSSize(width: 272, height: 34)
             : NSSize(width: 112, height: 24)
     }
 
