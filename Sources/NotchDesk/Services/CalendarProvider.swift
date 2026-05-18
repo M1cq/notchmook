@@ -7,6 +7,15 @@ final class CalendarProvider: ObservableObject {
 
     private let store = EKEventStore()
 
+    var todayEntries: [CalendarEntry] {
+        let calendar = Calendar.current
+        return entries.filter { entry in
+            calendar.isDate(entry.startDate, inSameDayAs: Date())
+                || calendar.isDate(entry.endDate, inSameDayAs: Date())
+                || (entry.startDate < Date() && entry.endDate > Date())
+        }
+    }
+
     func requestAndLoad() {
         if #available(macOS 14.0, *) {
             store.requestFullAccessToEvents { [weak self] granted, error in

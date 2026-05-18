@@ -750,11 +750,12 @@ private struct SettingsStripContent: View {
         HStack(spacing: 8) {
             SettingsWindowButton()
             ThemeSwatches()
-            CompactToggle(title: "Hover", isOn: $model.autoExpandOnHover)
-            CompactToggle(title: "Pin", isOn: $model.isPinned)
+            CompactToggle(title: "Hover", icon: "cursorarrow.motionlines", isOn: $model.autoExpandOnHover)
+            CompactToggle(title: "Pin", icon: "pin.fill", isOn: $model.isPinned)
             PermissionButton()
             Spacer()
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
     }
 }
 
@@ -763,16 +764,17 @@ private struct SettingsWindowButton: View {
         Button {
             openSettingsWindow()
         } label: {
-            VStack(spacing: 6) {
+            HStack(spacing: 8) {
                 Image(systemName: "slider.horizontal.3")
-                    .font(.system(size: 15, weight: .bold))
+                    .font(.system(size: 13, weight: .bold))
                 Text("Edit")
-                    .font(.system(size: 9, weight: .bold))
+                    .font(.system(size: 11, weight: .bold))
             }
             .foregroundStyle(.white)
-            .frame(width: 58, height: 54)
-            .background(RoundedRectangle(cornerRadius: 15, style: .continuous).fill(.black.opacity(0.24)))
-            .contentShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+            .padding(.horizontal, 13)
+            .frame(height: 38)
+            .background(SettingsControlBackground())
+            .contentShape(Capsule())
         }
         .buttonStyle(.plain)
         .simultaneousGesture(TapGesture().onEnded(openSettingsWindow))
@@ -790,15 +792,16 @@ private struct PermissionButton: View {
             PermissionService.requestAutomationPrompts()
             PermissionService.openPrivacySettings()
         } label: {
-            VStack(spacing: 6) {
+            HStack(spacing: 8) {
                 Image(systemName: "lock.shield")
-                    .font(.system(size: 15, weight: .bold))
+                    .font(.system(size: 13, weight: .bold))
                 Text("Perms")
-                    .font(.system(size: 9, weight: .bold))
+                    .font(.system(size: 11, weight: .bold))
             }
             .foregroundStyle(.white)
-            .frame(width: 58, height: 54)
-            .background(RoundedRectangle(cornerRadius: 15, style: .continuous).fill(.black.opacity(0.24)))
+            .padding(.horizontal, 13)
+            .frame(height: 38)
+            .background(SettingsControlBackground())
         }
         .buttonStyle(.plain)
         .help("Request Automation permissions")
@@ -899,6 +902,8 @@ private struct CompactCalendarBlock: View {
     @ObservedObject var provider: CalendarProvider
 
     var body: some View {
+        let todayEntry = provider.todayEntries.first
+
         VStack(alignment: .leading, spacing: 5) {
             HStack(alignment: .firstTextBaseline, spacing: 3) {
                 Text(monthText)
@@ -919,7 +924,7 @@ private struct CompactCalendarBlock: View {
 
             HStack(spacing: 5) {
                 Image(systemName: "calendar.badge.clock")
-                if let entry = provider.entries.first {
+                if let entry = todayEntry {
                     Text(timeText(for: entry))
                         .font(.system(size: 9, weight: .black))
                         .foregroundStyle(model.theme.accent)
@@ -1151,19 +1156,67 @@ private struct CompactDropZone: View {
 
 private struct CompactToggle: View {
     let title: String
+    let icon: String
     @Binding var isOn: Bool
 
     var body: some View {
-        VStack(spacing: 6) {
-            Text(title)
-                .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(.white)
-            Toggle("", isOn: $isOn)
-                .labelsHidden()
-                .toggleStyle(.switch)
+        Button {
+            isOn.toggle()
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: icon)
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(isOn ? .white : .white.opacity(0.58))
+                Text(title)
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(.white)
+                ToggleDot(isOn: isOn)
+            }
+            .padding(.horizontal, 12)
+            .frame(height: 38)
+            .background(SettingsControlBackground(isActive: isOn))
+            .contentShape(Capsule())
         }
-        .frame(width: 66, height: 54)
-        .background(RoundedRectangle(cornerRadius: 15, style: .continuous).fill(.black.opacity(0.24)))
+        .buttonStyle(.plain)
+    }
+}
+
+private struct ToggleDot: View {
+    let isOn: Bool
+
+    var body: some View {
+        ZStack(alignment: isOn ? .trailing : .leading) {
+            Capsule()
+                .fill(isOn ? Color.white.opacity(0.28) : Color.white.opacity(0.10))
+            Circle()
+                .fill(isOn ? Color.white : Color.white.opacity(0.48))
+                .frame(width: 12, height: 12)
+                .padding(2)
+        }
+        .frame(width: 28, height: 16)
+    }
+}
+
+private struct SettingsControlBackground: View {
+    @EnvironmentObject private var model: NookModel
+    var isActive = false
+
+    var body: some View {
+        Capsule()
+            .fill(
+                LinearGradient(
+                    colors: [
+                        Color.white.opacity(isActive ? 0.18 : 0.10),
+                        Color.black.opacity(model.theme == .black ? 0.42 : 0.28)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .overlay(
+                Capsule()
+                    .strokeBorder(.white.opacity(isActive ? 0.20 : 0.12), lineWidth: 1)
+            )
     }
 }
 
@@ -1187,15 +1240,27 @@ private struct ThemeSwatches: View {
                 }
             }
         } label: {
-            VStack(spacing: 6) {
-                Image(systemName: "paintpalette.fill")
-                    .font(.system(size: 15, weight: .bold))
-                Text("Style")
-                    .font(.system(size: 9, weight: .bold))
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: model.theme.gradient,
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .overlay(Circle().strokeBorder(.white.opacity(0.24), lineWidth: 1))
+                    .frame(width: 16, height: 16)
+                Text(model.theme.title)
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(.white)
+                Image(systemName: model.nookLayout.systemImage)
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.62))
             }
-            .foregroundStyle(.white)
-            .frame(width: 58, height: 54)
-            .background(RoundedRectangle(cornerRadius: 15, style: .continuous).fill(.black.opacity(0.24)))
+            .padding(.horizontal, 12)
+            .frame(height: 38)
+            .background(SettingsControlBackground())
         }
         .menuStyle(.borderlessButton)
         .buttonStyle(.plain)

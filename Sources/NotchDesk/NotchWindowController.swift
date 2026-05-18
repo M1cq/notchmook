@@ -110,10 +110,20 @@ final class NotchWindowController: NSWindowController {
         let pointWidth = screen.frame.width
         let physicalWidth = physicalWidthInMillimeters(for: screen)
 
-        if physicalWidth >= 325 || pointWidth >= 1680 {
+        if physicalWidth > 0 {
+            if physicalWidth >= 325 {
+                return .fifteen
+            }
+            if physicalWidth >= 295 {
+                return .fourteen
+            }
+            return .thirteen
+        }
+
+        if pointWidth >= 1680 {
             return .fifteen
         }
-        if physicalWidth >= 295 || pointWidth >= 1500 {
+        if pointWidth >= 1500 {
             return .fourteen
         }
         return .thirteen
@@ -136,7 +146,7 @@ final class NotchWindowController: NSWindowController {
     }
 
     private func updatePeekStateForPointer() {
-        guard model.autoExpandOnHover, model.isExpanded == false else { return }
+        guard model.isExpanded == false else { return }
 
         let point = NSEvent.mouseLocation
         if model.isPeeking {

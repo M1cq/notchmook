@@ -73,7 +73,8 @@ final class MediaController: ObservableObject {
     }
 
     private static func resolvedSnapshot(volume: Int) -> MediaSnapshot {
-        if let mediaRemote = MediaRemoteService.currentSnapshot(volume: volume) {
+        if let mediaRemote = MediaRemoteService.currentSnapshot(volume: volume),
+           mediaRemote.isUsefulMediaSnapshot {
             return mediaRemote
         }
         if let appleScript = AppleScriptMediaService.currentSnapshot(volume: volume) {
@@ -355,5 +356,23 @@ final class MediaController: ObservableObject {
         } catch {
             return ""
         }
+    }
+}
+
+private extension MediaSnapshot {
+    var isUsefulMediaSnapshot: Bool {
+        guard hasMedia else { return false }
+        let genericTitles = [
+            "Dia",
+            "Chrome",
+            "Google Chrome",
+            "Arc",
+            "Microsoft Edge",
+            "Brave",
+            "Brave Browser",
+            "Browser Media",
+            "Now Playing"
+        ]
+        return genericTitles.contains { title.caseInsensitiveCompare($0) == .orderedSame } == false
     }
 }
